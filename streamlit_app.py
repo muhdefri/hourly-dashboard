@@ -28,17 +28,17 @@ def map_sector(cell_name):
 
     name = str(cell_name).upper()
 
-    # ===== RLxx → sector dari digit pertama setelah RL =====
+    # RLxx → sector dari digit pertama setelah RL
     match_rl = re.search(r'RL(\d)', name)
     if match_rl:
         return f"SEC{match_rl.group(1)}"
 
-    # ===== RRxx → sector dari digit pertama setelah RR =====
+    # RRxx → sector dari digit pertama setelah RR
     match_rr = re.search(r'RR(\d)', name)
     if match_rr:
         return f"SEC{match_rr.group(1)}"
 
-    # ===== LOGIC LAMA (TETAP) =====
+    # LOGIC LAMA (fallback)
     match = re.search(r'(\d+)$', name)
     if match:
         last_digit = int(match.group(1)) % 10
@@ -110,16 +110,16 @@ def load_data(file):
         df["DATETIME_ID"] = df["DATE_ID"]
         df["DATA_RESOLUTION"] = "Daily"
 
-    df.rename(columns={"EUTRANCELLFDD":"CELL_NAME"}, inplace=True)
+    df.rename(columns={"EUTRANCELLFDD": "CELL_NAME"}, inplace=True)
     df["SECTOR_GROUP"] = df["CELL_NAME"].apply(map_sector)
 
-    band_order = ["LTE900","LTE1800","LTE2100","LTE2300"]
+    band_order = ["LTE900", "LTE1800", "LTE2100", "LTE2300"]
 
     df["Band"] = (
         df["Band"].astype(str)
         .str.upper()
-        .str.replace(" ","", regex=False)
-        .str.replace("-","", regex=False)
+        .str.replace(" ", "", regex=False)
+        .str.replace("-", "", regex=False)
     )
 
     df["Band"] = pd.Categorical(df["Band"], categories=band_order, ordered=True)
@@ -128,11 +128,11 @@ def load_data(file):
 
 
 # ================= MAIN =================
-uploaded = st.file_uploader("Upload KPI CSV", type=["csv","gz"])
+uploaded = st.file_uploader("Upload KPI CSV", type=["csv", "gz"])
 
 layout_mode = st.sidebar.radio(
     "Layout Mode",
-    ["Sector Combine","Band Matrix","Summary","Payload Stack"]
+    ["Sector Combine", "Band Matrix", "Summary", "Payload Stack"]
 )
 
 kab_df, target_df = load_sla_master()
@@ -168,7 +168,7 @@ if uploaded:
     data_resolution = df["DATA_RESOLUTION"].iloc[0]
 
     if data_resolution == "Hourly":
-        time_resolution = st.sidebar.radio("Time Resolution", ["Hourly","Daily"])
+        time_resolution = st.sidebar.radio("Time Resolution", ["Hourly", "Daily"])
     else:
         time_resolution = "Daily"
         st.sidebar.info("📅 Daily File Detected")
@@ -198,9 +198,7 @@ if uploaded:
                 how="left"
             )
 
-        # ==================================================
-        # ================= PAYLOAD STACK ==================
-        # ==================================================
+        # ================= PAYLOAD STACK =================
         if layout_mode == "Payload Stack":
 
             st.header("📦 Total Traffic Volume (GB)")
@@ -211,7 +209,7 @@ if uploaded:
                 horizontal=True
             )
 
-            cell_options = sorted(df_filtered["CELL_NAME"].dropna().unique())
+            cell_options = sorted(df_filtered["CELL_NAME"].unique())
             selected_cells = st.multiselect(
                 "Filter EUTRANCELL (Optional)",
                 cell_options,
@@ -262,7 +260,7 @@ if uploaded:
             delta = after_total - before_total
             growth = (delta / before_total * 100) if before_total != 0 else 0
 
-            col1,col2,col3,col4 = st.columns(4)
+            col1, col2, col3, col4 = st.columns(4)
             col1.metric("Before (GB)", f"{before_total:,.2f}")
             col2.metric("After (GB)", f"{after_total:,.2f}")
             col3.metric("Delta (GB)", f"{delta:,.2f}")
@@ -273,7 +271,7 @@ if uploaded:
                 x=x_col,
                 y="Total_Traffic_Volume_new",
                 color=color_col,
-                labels={"Total_Traffic_Volume_new":"Total Traffic (GB)"}
+                labels={"Total_Traffic_Volume_new": "Total Traffic (GB)"}
             )
 
             fig = apply_universal_legend(fig)
@@ -281,8 +279,115 @@ if uploaded:
 
             st.stop()
 
-        # ==================================================
-        # =============== SUMMARY / CHART ==================
-        # ==================================================
+        # ================= SUMMARY =================
+        if layout_mode == "Summary":
 
-        # (Bagian Summary, Sector Combine, Band Matrix tetap sama seperti script asli kamu di bawah sini tanpa perubahan)
+            band_options = ["ALL"] + sorted(df_filtered["Band"].dropna().unique())
+            selected_band = st.sidebar.selectbox("Filter Band", band_options)
+
+            if selected_band != "ALL":
+                df_scope = df_filtered[df_filtered["Band"] == selected_band]
+            else:
+                df_scope = df_filtered.copy()
+
+            st.header(f"📊 KPI Summary - {selected_band}")
+
+            df_summary = []
+
+            for kpi in summary_kpi:
+                avg_val = df_scope[kpi].mean()
+                target = get_sla_threshold(df_scope, kpi, target_df)
+
+                status = "-"
+                delta = "-"
+
+                if target is not None and pd.notna(avg_val):
+                    if "Abnormal" in kpi:
+                        status = "Y" if avg_val <= target else "N"
+                        delta = target - avg_val
+                    else:
+                        status = "Y" if avg_val >= target else "N"
+                        delta = avg_val - target
+
+                df_summary.append({
+                    "KPI": kpi,
+                    "Average": round(avg_val, 2),
+                    "Target KPI": target,
+                    "Passed": status,
+                    "Delta": round(delta, 2) if delta != "-" else "-"
+                })
+
+            summary_df = pd.DataFrame(df_summary)
+            st.dataframe(summary_df, use_container_width=True)
+
+            st.stop()
+
+        # ================= CHART LOOP =================
+        sectors = ["SEC1", "SEC2", "SEC3"]
+
+        for kpi in kpi_list:
+
+            st.markdown("---")
+            st.subheader(kpi)
+
+            cols = st.columns(len(sectors))
+
+            for i, sec in enumerate(sectors):
+
+                with cols[i]:
+
+                    df_sector = df_filtered[df_filtered["SECTOR_GROUP"] == sec]
+
+                    if df_sector.empty:
+                        continue
+
+                    if layout_mode == "Sector Combine":
+
+                        if time_resolution == "Daily":
+                            df_grouped = df_sector.groupby(["CELL_NAME", "DATE_ID"]).mean(numeric_only=True).reset_index()
+                            x_col = "DATE_ID"
+                        else:
+                            df_grouped = df_sector.groupby(["CELL_NAME", "DATETIME_ID"]).mean(numeric_only=True).reset_index()
+                            x_col = "DATETIME_ID"
+
+                        if kpi not in df_grouped.columns:
+                            continue
+
+                        if kpi in traffic_kpi:
+                            fig = px.area(df_grouped, x=x_col, y=kpi, color="CELL_NAME")
+                        else:
+                            fig = px.line(df_grouped, x=x_col, y=kpi, color="CELL_NAME", markers=True)
+
+                        fig = apply_universal_legend(fig)
+                        st.plotly_chart(fig, use_container_width=True)
+
+                    elif layout_mode == "Band Matrix":
+
+                        bands = ["LTE900", "LTE1800", "LTE2100", "LTE2300"]
+
+                        for band_val in bands:
+
+                            df_band = df_sector[df_sector["Band"] == band_val]
+
+                            if df_band.empty:
+                                continue
+
+                            st.markdown(f"📡 {band_val}")
+
+                            if time_resolution == "Daily":
+                                df_grouped = df_band.groupby(["CELL_NAME", "DATE_ID"]).mean(numeric_only=True).reset_index()
+                                x_col = "DATE_ID"
+                            else:
+                                df_grouped = df_band.groupby(["CELL_NAME", "DATETIME_ID"]).mean(numeric_only=True).reset_index()
+                                x_col = "DATETIME_ID"
+
+                            if kpi not in df_grouped.columns:
+                                continue
+
+                            if kpi in traffic_kpi:
+                                fig = px.area(df_grouped, x=x_col, y=kpi, color="CELL_NAME")
+                            else:
+                                fig = px.line(df_grouped, x=x_col, y=kpi, color="CELL_NAME", markers=True)
+
+                            fig = apply_universal_legend(fig)
+                            st.plotly_chart(fig, use_container_width=True)
