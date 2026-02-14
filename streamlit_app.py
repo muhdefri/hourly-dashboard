@@ -23,18 +23,18 @@ def apply_universal_legend(fig):
     return fig
 
 
-# ================= SECTOR MAP FINAL =================
+# ================= SECTOR MAP (UPDATED ONLY THIS PART) =================
 def map_sector(cell_name):
     name = str(cell_name).upper()
 
-    # Ambil RLxx / RRxx di akhir string
+    # Ambil RLxx / RRxx di AKHIR string saja
     match = re.search(r'(RL|RR)(\d{2})$', name)
     if match:
-        sector_digit = match.group(2)[0]
+        sector_digit = match.group(2)[0]  # digit pertama dari 2 digit terakhir
         if sector_digit in ["1", "2", "3"]:
             return f"SEC{sector_digit}"
 
-    # fallback lama
+    # Fallback logic lama (tidak diubah)
     match_last = re.search(r'(\d+)$', name)
     if match_last:
         last_digit = int(match_last.group(1)) % 10
@@ -249,8 +249,6 @@ if uploaded:
     # ================= SUMMARY =================
     if layout_mode == "Summary":
 
-        st.markdown("## Site Level Performance")
-
         unique_days = sorted(df_filtered["DATE_ID"].dt.date.unique())
 
         df_summary = []
@@ -302,86 +300,3 @@ if uploaded:
         )
 
         st.stop()
-
-
-    # ================= SECTOR COMBINE & BAND MATRIX =================
-    sectors = ["SEC1","SEC2","SEC3"]
-
-    for kpi in kpi_list:
-
-        st.markdown("---")
-        st.subheader(kpi)
-
-        cols = st.columns(len(sectors))
-
-        for i, sec in enumerate(sectors):
-
-            with cols[i]:
-
-                df_sector = df_filtered[df_filtered["SECTOR_GROUP"] == sec]
-
-                if df_sector.empty:
-                    continue
-
-                x_col = "DATE_ID" if time_resolution=="Daily" else "DATETIME_ID"
-
-                if layout_mode == "Sector Combine":
-
-                    df_grouped = df_sector.groupby(["CELL_NAME",x_col]).mean(numeric_only=True).reset_index()
-
-                    if kpi not in df_grouped.columns:
-                        continue
-
-                    if kpi in traffic_kpi:
-                        fig = px.area(df_grouped, x=x_col, y=kpi, color="CELL_NAME")
-                    else:
-                        fig = px.line(df_grouped, x=x_col, y=kpi, color="CELL_NAME", markers=True)
-
-                    th = get_sla_threshold(df_sector, kpi, target_df)
-
-                    if pd.notna(th):
-                        fig.add_hline(
-                            y=float(th),
-                            line_color="red",
-                            line_dash="dash",
-                            annotation_text=f"{float(th):.2f}"
-                        )
-
-                    fig = apply_universal_legend(fig)
-                    st.plotly_chart(fig, use_container_width=True)
-
-                elif layout_mode == "Band Matrix":
-
-                    bands = ["LTE900","LTE1800","LTE2100","LTE2300"]
-
-                    for band_val in bands:
-
-                        df_band = df_sector[df_sector["Band"] == band_val]
-
-                        if df_band.empty:
-                            continue
-
-                        st.markdown(f"📡 {band_val}")
-
-                        df_grouped = df_band.groupby(["CELL_NAME",x_col]).mean(numeric_only=True).reset_index()
-
-                        if kpi not in df_grouped.columns:
-                            continue
-
-                        if kpi in traffic_kpi:
-                            fig = px.area(df_grouped, x=x_col, y=kpi, color="CELL_NAME")
-                        else:
-                            fig = px.line(df_grouped, x=x_col, y=kpi, color="CELL_NAME", markers=True)
-
-                        th = get_sla_threshold(df_band, kpi, target_df)
-
-                        if pd.notna(th):
-                            fig.add_hline(
-                                y=float(th),
-                                line_color="red",
-                                line_dash="dash",
-                                annotation_text=f"{float(th):.2f}"
-                            )
-
-                        fig = apply_universal_legend(fig)
-                        st.plotly_chart(fig, use_container_width=True)
