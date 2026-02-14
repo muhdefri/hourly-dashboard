@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -28,10 +27,13 @@ def apply_universal_legend(fig):
 def map_sector(cell_name):
     cell_name = str(cell_name).upper()
 
+    # ==== PRIORITAS 1: RL / RR format (XX11, XX22, XX33) ====
     if "RL" in cell_name or "RR" in cell_name:
         match = re.search(r'(\d{2})$', cell_name)
+
         if match:
             sector_digit = match.group(1)[0]
+
             if sector_digit == "1":
                 return "SEC1"
             elif sector_digit == "2":
@@ -39,9 +41,11 @@ def map_sector(cell_name):
             elif sector_digit == "3":
                 return "SEC3"
 
+    # ==== PRIORITAS 2: Logic Lama (fallback) ====
     match = re.search(r'(\d+)$', cell_name)
     if match:
         last_digit = int(match.group(1)) % 10
+
         if last_digit in [1,4,7]:
             return "SEC1"
         elif last_digit in [2,5,8]:
@@ -114,6 +118,8 @@ def load_data(file):
         df["DATA_RESOLUTION"] = "Daily"
 
     df.rename(columns={"EUTRANCELLFDD":"CELL_NAME"}, inplace=True)
+
+    # ✅ Updated sector logic
     df["SECTOR_GROUP"] = df["CELL_NAME"].apply(map_sector)
 
     band_order = ["LTE900","LTE1800","LTE2100","LTE2300"]
@@ -135,7 +141,7 @@ uploaded = st.file_uploader("Upload KPI CSV", type=["csv","gz"])
 
 layout_mode = st.sidebar.radio(
     "Layout Mode",
-    ["Sector Combine","Band Matrix","Summary","Payload Stack"]
+    ["Sector Combine","Band Matrix","Summary"]
 )
 
 kab_df, target_df = load_sla_master()
@@ -171,7 +177,10 @@ if uploaded:
     data_resolution = df["DATA_RESOLUTION"].iloc[0]
 
     if data_resolution == "Hourly":
-        time_resolution = st.sidebar.radio("Time Resolution", ["Hourly","Daily"])
+        time_resolution = st.sidebar.radio(
+            "Time Resolution",
+            ["Hourly","Daily"]
+        )
     else:
         time_resolution = "Daily"
         st.sidebar.info("📅 Daily File Detected")
@@ -201,42 +210,6 @@ if uploaded:
                 how="left"
             )
 
-        # ================= PAYLOAD STACK =================
-        if layout_mode == "Payload Stack":
-
-            st.header("📦 Total Traffic Volume - Stacked by Site")
-
-            if time_resolution == "Daily":
-                df_grouped = (
-                    df_filtered.groupby(["DATE_ID","SITE_ID"])
-                    ["Total_Traffic_Volume_new"]
-                    .sum()
-                    .reset_index()
-                )
-                x_col = "DATE_ID"
-            else:
-                df_grouped = (
-                    df_filtered.groupby(["DATETIME_ID","SITE_ID"])
-                    ["Total_Traffic_Volume_new"]
-                    .sum()
-                    .reset_index()
-                )
-                x_col = "DATETIME_ID"
-
-            fig = px.area(
-                df_grouped,
-                x=x_col,
-                y="Total_Traffic_Volume_new",
-                color="SITE_ID",
-                labels={"Total_Traffic_Volume_new": "Total Traffic Volume"}
-            )
-
-            fig = apply_universal_legend(fig)
-            st.plotly_chart(fig, use_container_width=True)
-
-            st.stop()
-
-        # ================= EXISTING CHART LOOP (AMAN) =================
         sectors = ["SEC1","SEC2","SEC3"]
 
         for kpi in kpi_list:
