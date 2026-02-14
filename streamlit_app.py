@@ -206,7 +206,7 @@ if uploaded:
                 horizontal=True
             )
 
-            cell_options = sorted(df_filtered["CELL_NAME"].unique())
+            cell_options = sorted(df_filtered["CELL_NAME"].dropna().unique())
             selected_cells = st.multiselect(
                 "Filter EUTRANCELL (Optional)",
                 cell_options,
@@ -275,3 +275,8 @@ if uploaded:
             st.plotly_chart(fig, use_container_width=True)
 
             st.stop()
+
+        # ================= ORIGINAL FLOW (TETAP SAMA) =================
+        if layout_mode == "Summary":
+            ...
+        # (bagian Summary, Sector Combine, Band Matrix tetap sama seperti script kamu)
