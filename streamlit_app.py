@@ -117,7 +117,7 @@ uploaded = st.file_uploader("Upload KPI CSV", type=["csv","gz"])
 
 layout_mode = st.sidebar.radio(
     "Layout Mode",
-    ["Sector Combine","Band Matrix","Summary"]
+    ["Sector Combine","Band Matrix","Summary","Payload Stack"]
 )
 
 kab_df, target_df = load_sla_master()
@@ -126,7 +126,6 @@ if uploaded:
 
     df = load_data(uploaded)
 
-    # ===== KPI CONFIG =====
     summary_kpi = [
         "RRC Setup Success Rate (Service)",
         "ERAB_Setup_Success_Rate_All_New",
@@ -151,19 +150,14 @@ if uploaded:
 
     kpi_list = summary_kpi + traffic_kpi
 
-    # ===== RESOLUTION =====
     data_resolution = df["DATA_RESOLUTION"].iloc[0]
 
     if data_resolution == "Hourly":
-        time_resolution = st.sidebar.radio(
-            "Time Resolution",
-            ["Hourly","Daily"]
-        )
+        time_resolution = st.sidebar.radio("Time Resolution", ["Hourly","Daily"])
     else:
         time_resolution = "Daily"
         st.sidebar.info("📅 Daily File Detected")
 
-    # ===== DATE FILTER =====
     start_date = st.sidebar.date_input("Start Date", df["DATE_ID"].min().date())
     end_date = st.sidebar.date_input("End Date", df["DATE_ID"].max().date())
 
@@ -189,7 +183,74 @@ if uploaded:
                 how="left"
             )
 
-        # ================= SUMMARY =================
+        # ==================================================
+        # ================= PAYLOAD STACK ==================
+        # ==================================================
+        if layout_mode == "Payload Stack":
+
+            st.header("📦 Total Traffic Volume (GB)")
+
+            if time_resolution == "Daily":
+                df_grouped = (
+                    df_filtered.groupby(["DATE_ID","SITE_ID"])
+                    ["Total_Traffic_Volume_new"]
+                    .sum()
+                    .reset_index()
+                )
+                x_col = "DATE_ID"
+            else:
+                df_grouped = (
+                    df_filtered.groupby(["DATETIME_ID","SITE_ID"])
+                    ["Total_Traffic_Volume_new"]
+                    .sum()
+                    .reset_index()
+                )
+                x_col = "DATETIME_ID"
+
+            df_grouped["Total_Traffic_Volume_new"] /= 1024
+
+            min_date = df_grouped[x_col].min().date()
+            max_date = df_grouped[x_col].max().date()
+
+            before_range = st.date_input("Before Period", (min_date, min_date))
+            after_range = st.date_input("After Period", (max_date, max_date))
+
+            before_total = df_grouped[
+                (df_grouped[x_col].dt.date >= before_range[0]) &
+                (df_grouped[x_col].dt.date <= before_range[1])
+            ]["Total_Traffic_Volume_new"].sum()
+
+            after_total = df_grouped[
+                (df_grouped[x_col].dt.date >= after_range[0]) &
+                (df_grouped[x_col].dt.date <= after_range[1])
+            ]["Total_Traffic_Volume_new"].sum()
+
+            delta = after_total - before_total
+            growth = (delta / before_total * 100) if before_total != 0 else 0
+
+            col1,col2,col3,col4 = st.columns(4)
+            col1.metric("Before (GB)", f"{before_total:,.2f}")
+            col2.metric("After (GB)", f"{after_total:,.2f}")
+            col3.metric("Delta (GB)", f"{delta:,.2f}")
+            col4.metric("Growth %", f"{growth:.2f}%")
+
+            fig = px.area(
+                df_grouped,
+                x=x_col,
+                y="Total_Traffic_Volume_new",
+                color="SITE_ID",
+                labels={"Total_Traffic_Volume_new":"Total Traffic (GB)"}
+            )
+
+            fig = apply_universal_legend(fig)
+            st.plotly_chart(fig, use_container_width=True)
+
+            st.stop()
+
+        # ==================================================
+        # ================= ORIGINAL LOGIC =================
+        # ==================================================
+
         if layout_mode == "Summary":
 
             band_options = ["ALL"] + sorted(df_filtered["Band"].dropna().unique())
