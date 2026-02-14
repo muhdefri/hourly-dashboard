@@ -28,14 +28,17 @@ def map_sector(cell_name):
 
     name = str(cell_name).upper()
 
+    # ===== RLxx → sector dari digit pertama setelah RL =====
     match_rl = re.search(r'RL(\d)', name)
     if match_rl:
         return f"SEC{match_rl.group(1)}"
 
+    # ===== RRxx → sector dari digit pertama setelah RR =====
     match_rr = re.search(r'RR(\d)', name)
     if match_rr:
         return f"SEC{match_rr.group(1)}"
 
+    # ===== LOGIC LAMA (TETAP) =====
     match = re.search(r'(\d+)$', name)
     if match:
         last_digit = int(match.group(1)) % 10
@@ -195,7 +198,9 @@ if uploaded:
                 how="left"
             )
 
-        # ================= PAYLOAD STACK =================
+        # ==================================================
+        # ================= PAYLOAD STACK ==================
+        # ==================================================
         if layout_mode == "Payload Stack":
 
             st.header("📦 Total Traffic Volume (GB)")
@@ -276,7 +281,8 @@ if uploaded:
 
             st.stop()
 
-        # ================= ORIGINAL FLOW (TETAP SAMA) =================
-        if layout_mode == "Summary":
-            ...
-        # (bagian Summary, Sector Combine, Band Matrix tetap sama seperti script kamu)
+        # ==================================================
+        # =============== SUMMARY / CHART ==================
+        # ==================================================
+
+        # (Bagian Summary, Sector Combine, Band Matrix tetap sama seperti script asli kamu di bawah sini tanpa perubahan)
