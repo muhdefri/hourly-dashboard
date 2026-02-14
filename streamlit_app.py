@@ -60,10 +60,8 @@ def load_sla_master():
 
 # ================= SLA LOOKUP =================
 def get_sla_threshold(df_scope, kpi, target_df):
-
     if target_df is None or df_scope.empty:
         return None
-
     try:
         kab = str(df_scope["KABUPATEN"].dropna().iloc[0]).lower().strip()
         band = str(df_scope["Band"].dropna().unique()[0]).lower().strip()
@@ -81,10 +79,8 @@ def get_sla_threshold(df_scope, kpi, target_df):
 
         if not th.empty and col_match:
             return th[col_match[0]].values[0]
-
     except:
         return None
-
     return None
 
 
@@ -109,16 +105,12 @@ def load_data(file):
     df.rename(columns={"EUTRANCELLFDD":"CELL_NAME"}, inplace=True)
     df["SECTOR_GROUP"] = df["CELL_NAME"].apply(map_sector)
 
-    band_order = ["LTE900","LTE1800","LTE2100","LTE2300"]
-
     df["Band"] = (
         df["Band"].astype(str)
         .str.upper()
         .str.replace(" ","", regex=False)
         .str.replace("-","", regex=False)
     )
-
-    df["Band"] = pd.Categorical(df["Band"], categories=band_order, ordered=True)
 
     return df
 
@@ -232,10 +224,24 @@ if layout_mode == "Payload Stack":
     fig = apply_universal_legend(fig)
     st.plotly_chart(fig, use_container_width=True)
 
+
 # ============================================================
 # ======================== SUMMARY ===========================
 # ============================================================
 if layout_mode == "Summary":
+
+    summary_kpi = [
+        "RRC Setup Success Rate (Service)",
+        "ERAB_Setup_Success_Rate_All_New",
+        "Session_Setup_Success_Rate_New",
+        "Session_Abnormal_Release_New",
+        "Intra-Frequency Handover Out Success Rate",
+        "inter_freq_HO",
+        "Radio_Network_Availability_Rate",
+        "UL_INT_PUSCH",
+        "Average_CQI_nonHOME",
+        "SE_New"
+    ]
 
     band_options = ["ALL"] + sorted(df_filtered["Band"].dropna().unique())
     selected_band = st.sidebar.selectbox("Filter Band", band_options)
@@ -252,19 +258,6 @@ if layout_mode == "Summary":
         df_scope = df_scope[df_scope["CELL_NAME"].isin(selected_cells)]
 
     st.header("📊 KPI Summary")
-
-    summary_kpi = [
-        "RRC Setup Success Rate (Service)",
-        "ERAB_Setup_Success_Rate_All_New",
-        "Session_Setup_Success_Rate_New",
-        "Session_Abnormal_Release_New",
-        "Intra-Frequency Handover Out Success Rate",
-        "inter_freq_HO",
-        "Radio_Network_Availability_Rate",
-        "UL_INT_PUSCH",
-        "Average_CQI_nonHOME",
-        "SE_New"
-    ]
 
     df_summary = []
     unique_days = sorted(df_scope["DATE_ID"].dt.date.unique())
@@ -314,63 +307,3 @@ if layout_mode == "Summary":
         summary_df.style.applymap(highlight_pass, subset=["Passed"]),
         use_container_width=True
     )
-
-# ============================================================
-# =========== SECTOR COMBINE & BAND MATRIX ==================
-# ============================================================
-if layout_mode in ["Sector Combine","Band Matrix"]:
-
-    summary_kpi = [
-        "RRC Setup Success Rate (Service)",
-        "ERAB_Setup_Success_Rate_All_New",
-        "Session_Setup_Success_Rate_New",
-        "Session_Abnormal_Release_New",
-        "Intra-Frequency Handover Out Success Rate",
-        "inter_freq_HO",
-        "Radio_Network_Availability_Rate",
-        "UL_INT_PUSCH",
-        "Average_CQI_nonHOME",
-        "SE_New"
-    ]
-
-    sectors = ["SEC1","SEC2","SEC3"]
-
-    for kpi in summary_kpi:
-
-        st.markdown("---")
-        st.subheader(kpi)
-
-        cols = st.columns(3)
-
-        for i, sec in enumerate(sectors):
-            with cols[i]:
-
-                df_sector = df_filtered[df_filtered["SECTOR_GROUP"] == sec]
-
-                if df_sector.empty:
-                    continue
-
-                if time_resolution == "Hourly":
-                    df_grouped = df_sector.groupby(["CELL_NAME","DATETIME_ID"]).mean(numeric_only=True).reset_index()
-                    x_col = "DATETIME_ID"
-                else:
-                    df_grouped = df_sector.groupby(["CELL_NAME","DATE_ID"]).mean(numeric_only=True).reset_index()
-                    x_col = "DATE_ID"
-
-                if kpi not in df_grouped.columns:
-                    continue
-
-                fig = px.line(df_grouped, x=x_col, y=kpi, color="CELL_NAME", markers=True)
-
-                th = get_sla_threshold(df_sector, kpi, target_df)
-
-                if pd.notna(th):
-                    fig.add_hline(
-                        y=float(th),
-                        line_color="red",
-                        line_dash="dash",
-                        annotation_text=f"{th:.2f}"
-                    )
-
-                fig = apply_universal_legend(fig)
-                st.plotly_chart(fig, use_container_width=True)
