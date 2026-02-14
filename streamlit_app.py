@@ -221,13 +221,13 @@ if uploaded:
             else:
                 df_payload = df_filtered.copy()
 
-            x_col = "DATE_ID" if time_resolution == "Daily" else "DATETIME_ID"
+            x_col = "DATE_ID" if time_resolution=="Daily" else "DATETIME_ID"
 
             if stack_mode == "Stack by SITE":
-                group_cols = [x_col, "SITE_ID"]
+                group_cols = [x_col,"SITE_ID"]
                 color_col = "SITE_ID"
             else:
-                group_cols = [x_col, "CELL_NAME"]
+                group_cols = [x_col,"CELL_NAME"]
                 color_col = "CELL_NAME"
 
             df_grouped = (
@@ -277,18 +277,40 @@ if uploaded:
         # ================= SUMMARY =================
         if layout_mode == "Summary":
 
-            st.header("📊 KPI Summary")
+            band_options = ["ALL"] + sorted(df_filtered["Band"].dropna().unique())
+            selected_band = st.sidebar.selectbox("Filter Band", band_options)
+
+            if selected_band != "ALL":
+                df_scope = df_filtered[df_filtered["Band"] == selected_band]
+            else:
+                df_scope = df_filtered.copy()
+
+            st.header(f"📊 KPI Summary - {selected_band}")
 
             df_summary = []
+            unique_days = sorted(df_scope["DATE_ID"].dt.date.unique())
 
             for kpi in summary_kpi:
-                avg_val = df_filtered[kpi].mean()
-                target = get_sla_threshold(df_filtered, kpi, target_df)
 
-                status = "-"
-                delta = "-"
+                row = {"KPI": kpi}
+                daily_values = []
+
+                for idx, d in enumerate(unique_days):
+
+                    val = df_scope[df_scope["DATE_ID"].dt.date == d][kpi].mean()
+
+                    col_name = f"DAY {idx+1}\n{pd.to_datetime(d).strftime('%d-%b-%y')}"
+                    row[col_name] = round(val,2) if pd.notna(val) else None
+                    daily_values.append(val)
+
+                avg_val = pd.Series(daily_values).mean()
+                row["Average"] = round(avg_val,2)
+
+                target = get_sla_threshold(df_scope, kpi, target_df)
+                row["Target KPI"] = target
 
                 if target is not None and pd.notna(avg_val):
+
                     if "Abnormal" in kpi:
                         status = "Y" if avg_val <= target else "N"
                         delta = target - avg_val
@@ -296,16 +318,29 @@ if uploaded:
                         status = "Y" if avg_val >= target else "N"
                         delta = avg_val - target
 
-                df_summary.append({
-                    "KPI": kpi,
-                    "Average": round(avg_val,2),
-                    "Target KPI": target,
-                    "Passed": status,
-                    "Delta": round(delta,2) if delta != "-" else "-"
-                })
+                    row["Passed"] = status
+                    row["Delta"] = round(delta,2)
+
+                else:
+                    row["Passed"] = "-"
+                    row["Delta"] = "-"
+
+                df_summary.append(row)
 
             summary_df = pd.DataFrame(df_summary)
-            st.dataframe(summary_df, use_container_width=True)
+
+            def highlight_pass(val):
+                if val == "Y":
+                    return "background-color:#c6efce"
+                elif val == "N":
+                    return "background-color:#ffc7ce"
+                return ""
+
+            st.dataframe(
+                summary_df.style.applymap(highlight_pass, subset=["Passed"]),
+                use_container_width=True
+            )
+
             st.stop()
 
         # ================= CHART LOOP =================
@@ -326,11 +361,11 @@ if uploaded:
                     if df_sector.empty:
                         continue
 
+                    x_col = "DATE_ID" if time_resolution=="Daily" else "DATETIME_ID"
+
                     if layout_mode == "Sector Combine":
 
-                        x_col = "DATE_ID" if time_resolution=="Daily" else "DATETIME_ID"
                         df_grouped = df_sector.groupby(["CELL_NAME",x_col]).mean(numeric_only=True).reset_index()
-
                         if kpi not in df_grouped.columns:
                             continue
 
@@ -338,7 +373,13 @@ if uploaded:
 
                         th = get_sla_threshold(df_sector, kpi, target_df)
                         if pd.notna(th):
-                            fig.add_hline(y=float(th), line_color="red", line_dash="dash")
+                            fig.add_hline(
+                                y=float(th),
+                                line_color="red",
+                                line_dash="dash",
+                                annotation_text=f"{th:.2f}",
+                                annotation_position="top left"
+                            )
 
                         fig = apply_universal_legend(fig)
                         st.plotly_chart(fig, use_container_width=True)
@@ -355,9 +396,7 @@ if uploaded:
 
                             st.markdown(f"📡 {band_val}")
 
-                            x_col = "DATE_ID" if time_resolution=="Daily" else "DATETIME_ID"
                             df_grouped = df_band.groupby(["CELL_NAME",x_col]).mean(numeric_only=True).reset_index()
-
                             if kpi not in df_grouped.columns:
                                 continue
 
@@ -365,7 +404,13 @@ if uploaded:
 
                             th = get_sla_threshold(df_band, kpi, target_df)
                             if pd.notna(th):
-                                fig.add_hline(y=float(th), line_color="red", line_dash="dash")
+                                fig.add_hline(
+                                    y=float(th),
+                                    line_color="red",
+                                    line_dash="dash",
+                                    annotation_text=f"{th:.2f}",
+                                    annotation_position="top left"
+                                )
 
                             fig = apply_universal_legend(fig)
                             st.plotly_chart(fig, use_container_width=True)
