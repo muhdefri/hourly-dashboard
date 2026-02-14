@@ -25,12 +25,27 @@ def apply_universal_legend(fig):
 
 # ================= SECTOR MAP =================
 def map_sector(cell_name):
-    match = re.search(r'(\d+)$', str(cell_name))
+
+    name = str(cell_name).upper()
+
+    # ===== RLxx → sector dari digit pertama setelah RL =====
+    match_rl = re.search(r'RL(\d)', name)
+    if match_rl:
+        return f"SEC{match_rl.group(1)}"
+
+    # ===== RRxx → sector dari digit pertama setelah RR =====
+    match_rr = re.search(r'RR(\d)', name)
+    if match_rr:
+        return f"SEC{match_rr.group(1)}"
+
+    # ===== LOGIC LAMA (TETAP) =====
+    match = re.search(r'(\d+)$', name)
     if match:
         last_digit = int(match.group(1)) % 10
         if last_digit in [1,4,7]: return "SEC1"
         elif last_digit in [2,5,8]: return "SEC2"
         elif last_digit in [3,6,9]: return "SEC3"
+
     return "UNKNOWN"
 
 
