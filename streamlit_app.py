@@ -239,12 +239,26 @@ if uploaded:
                             if kpi not in df_grouped.columns:
                                 continue
 
-                            fig = px.line(df_grouped, x=x_col, y=kpi, color="CELL_NAME", markers=True)
+                            if kpi in traffic_kpi:
+                                fig = px.area(df_grouped, x=x_col, y=kpi, color="CELL_NAME")
+                            else:
+                                fig = px.line(df_grouped, x=x_col, y=kpi, color="CELL_NAME", markers=True)
+
+                            # ===== SLA LINE =====
+                            th = get_sla_threshold(df_sector, kpi, target_df)
+                            if pd.notna(th):
+                                fig.add_hline(
+                                    y=float(th),
+                                    line_color="red",
+                                    line_dash="dash",
+                                    annotation_text=f"{float(th):.2f}",
+                                    annotation_position="top left"
+                                )
 
                             fig = apply_universal_legend(fig)
                             st.plotly_chart(fig, use_container_width=True)
 
-                else:  # BAND MATRIX FIX
+                else:  # BAND MATRIX
 
                     bands = ["LTE900","LTE1800","LTE2100","LTE2300"]
 
@@ -270,7 +284,21 @@ if uploaded:
                                 if kpi not in df_grouped.columns:
                                     continue
 
-                                fig = px.line(df_grouped, x=x_col, y=kpi, color="CELL_NAME", markers=True)
+                                if kpi in traffic_kpi:
+                                    fig = px.area(df_grouped, x=x_col, y=kpi, color="CELL_NAME")
+                                else:
+                                    fig = px.line(df_grouped, x=x_col, y=kpi, color="CELL_NAME", markers=True)
+
+                                # ===== SLA LINE =====
+                                th = get_sla_threshold(df_band, kpi, target_df)
+                                if pd.notna(th):
+                                    fig.add_hline(
+                                        y=float(th),
+                                        line_color="red",
+                                        line_dash="dash",
+                                        annotation_text=f"{float(th):.2f}",
+                                        annotation_position="top left"
+                                    )
 
                                 fig = apply_universal_legend(fig)
                                 st.plotly_chart(fig, use_container_width=True)
