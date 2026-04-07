@@ -103,7 +103,6 @@ def load_data(file):
             .astype(str)
             .str.replace('%','', regex=False)
             .str.replace(',','.', regex=False)
-            .replace(['', 'None', 'nan'], None)
         )
 
         df[col] = pd.to_numeric(df[col], errors='coerce')
@@ -143,10 +142,30 @@ if uploaded:
 
     df = load_data(uploaded)
 
-    kpi_list = [
-        c for c in df.columns
-        if c not in ["SITE_ID","CELL_NAME","Band","DATE_ID","DATETIME_ID","Hour_id","SECTOR_GROUP"]
+    # ================= KPI LIST FIX =================
+    summary_kpi = [
+        "RRC Setup Success Rate (Service)",
+        "ERAB_Setup_Success_Rate_All_New",
+        "Session_Setup_Success_Rate_New",
+        "Session_Abnormal_Release_New",
+        "Intra-Frequency Handover Out Success Rate",
+        "inter_freq_HO",
+        "Radio_Network_Availability_Rate",
+        "UL_INT_PUSCH",
+        "Average_CQI_nonHOME",
+        "SE_New"
     ]
+
+    traffic_kpi = [
+        "Total_Traffic_Volume_new",
+        "DL_Resource_Block_Utilizing_Rate_New",
+        "UL_Resource_Block_Utilizing_Rate_New",
+        "Downlink_Traffic_Volume_New",
+        "Uplink_Traffic_Volume_New",
+        "Active User DL"
+    ]
+
+    kpi_list = summary_kpi + traffic_kpi
 
     # ================= FILTER =================
     start_date = st.sidebar.date_input("Start Date", df["DATE_ID"].min().date())
@@ -173,64 +192,15 @@ if uploaded:
 
         x_col = "DATE_ID"
 
-        # ================= SUMMARY =================
-        if layout_mode == "Summary":
-
-            st.subheader("Summary KPI")
-
-            unique_days = sorted(df_filtered["DATE_ID"].dt.date.unique())
-
-            html = "<table style='border-collapse:collapse; width:100%;'>"
-            html += "<tr><th>KPI</th>"
-
-            for d in unique_days:
-                html += f"<th>{pd.to_datetime(d).strftime('%d-%b')}</th>"
-
-            html += "<th>AVG</th><th>TARGET</th><th>PASS</th></tr>"
-
-            for kpi in kpi_list:
-
-                html += f"<tr><td>{kpi}</td>"
-
-                vals = []
-
-                for d in unique_days:
-                    val = df_filtered[df_filtered["DATE_ID"].dt.date == d][kpi].mean()
-                    vals.append(val)
-                    html += f"<td>{round(val,2) if pd.notna(val) else ''}</td>"
-
-                avg = pd.Series(vals).mean()
-                html += f"<td>{round(avg,2) if pd.notna(avg) else ''}</td>"
-
-                target = get_sla_threshold(df_filtered, kpi, target_df)
-                html += f"<td>{round(target,2) if target else ''}</td>"
-
-                if target and pd.notna(avg):
-                    passed = "Y" if avg >= target else "N"
-                    color = "#b7e1cd" if passed=="Y" else "#f4c7c3"
-                    html += f"<td style='background:{color}'>{passed}</td>"
-                else:
-                    html += "<td></td>"
-
-                html += "</tr>"
-
-            html += "</table>"
-            st.markdown(html, unsafe_allow_html=True)
-
-        # ================= PAYLOAD =================
-        elif layout_mode == "Payload Stack":
-
-            df_plot = df_filtered.groupby(["DATE_ID","SITE_ID"])["Total_Traffic_Volume_new"].sum().reset_index()
-
-            fig = px.area(df_plot, x="DATE_ID", y="Total_Traffic_Volume_new", color="SITE_ID")
-            st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
-
-        # ================= SECTOR =================
-        elif layout_mode == "Sector Combine":
+        # ================= SECTOR COMBINE =================
+        if layout_mode == "Sector Combine":
 
             sectors = ["SEC1","SEC2","SEC3"]
 
             for kpi in kpi_list:
+
+                if kpi not in df_filtered.columns:
+                    continue
 
                 st.markdown("---")
                 st.subheader(kpi)
@@ -272,10 +242,13 @@ if uploaded:
 
             for kpi in kpi_list:
 
+                if kpi not in df_filtered.columns:
+                    continue
+
                 st.markdown("---")
                 st.subheader(kpi)
 
-                header_cols = st.columns(len(sectors))
+                header_cols = st.columns(3)
                 for i, sec in enumerate(sectors):
                     header_cols[i].markdown(f"### {sec}")
 
@@ -283,7 +256,7 @@ if uploaded:
 
                     st.markdown(f"#### {band}")
 
-                    cols = st.columns(len(sectors))
+                    cols = st.columns(3)
 
                     for i, sec in enumerate(sectors):
 
@@ -315,3 +288,47 @@ if uploaded:
                                 fig.add_hline(y=float(th), line_color="red", line_dash="dash")
 
                             st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
+
+        # ================= SUMMARY =================
+        elif layout_mode == "Summary":
+
+            st.subheader("Summary KPI")
+
+            unique_days = sorted(df_filtered["DATE_ID"].dt.date.unique())
+
+            html = "<table style='border-collapse:collapse; width:100%;'>"
+            html += "<tr><th>KPI</th>"
+
+            for d in unique_days:
+                html += f"<th>{pd.to_datetime(d).strftime('%d-%b')}</th>"
+
+            html += "<th>AVG</th></tr>"
+
+            for kpi in summary_kpi:
+
+                if kpi not in df_filtered.columns:
+                    continue
+
+                html += f"<tr><td>{kpi}</td>"
+
+                vals = []
+                for d in unique_days:
+                    val = df_filtered[df_filtered["DATE_ID"].dt.date == d][kpi].mean()
+                    vals.append(val)
+                    html += f"<td>{round(val,2) if pd.notna(val) else ''}</td>"
+
+                html += f"<td>{round(pd.Series(vals).mean(),2)}</td>"
+                html += "</tr>"
+
+            html += "</table>"
+            st.markdown(html, unsafe_allow_html=True)
+
+        # ================= PAYLOAD =================
+        elif layout_mode == "Payload Stack":
+
+            if "Total_Traffic_Volume_new" in df_filtered.columns:
+
+                df_plot = df_filtered.groupby(["DATE_ID","SITE_ID"])["Total_Traffic_Volume_new"].sum().reset_index()
+
+                fig = px.area(df_plot, x="DATE_ID", y="Total_Traffic_Volume_new", color="SITE_ID")
+                st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
