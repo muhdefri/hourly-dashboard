@@ -45,48 +45,6 @@ def map_sector(cell_name):
     return "UNKNOWN"
 
 
-# ================= SLA LOAD =================
-@st.cache_data
-def load_sla_master():
-    path = Path("src/SLA_MASTER.xlsx")
-    if not path.exists():
-        return None, None
-
-    kab_df = pd.read_excel(path, sheet_name="KABUPATEN")
-    target_df = pd.read_excel(path, sheet_name="KPI Target", header=2)
-    target_df.columns = target_df.columns.str.strip().str.lower()
-    return kab_df, target_df
-
-
-# ================= SLA LOOKUP =================
-def get_sla_threshold(df_scope, kpi, target_df):
-    if target_df is None or df_scope.empty:
-        return None
-
-    try:
-        kab = str(df_scope["KABUPATEN"].dropna().iloc[0]).lower().strip()
-        band = str(df_scope["Band"].dropna().unique()[0]).lower().strip()
-
-        th = target_df[
-            (target_df["kabupaten"].str.lower().str.strip() == kab) &
-            (target_df["band"].str.lower().str.strip() == band)
-        ]
-
-        col_match = [
-            c for c in target_df.columns
-            if c.replace("_","").replace(" ","") ==
-            kpi.lower().replace("_","").replace(" ","")
-        ]
-
-        if not th.empty and col_match:
-            return th[col_match[0]].values[0]
-
-    except:
-        return None
-
-    return None
-
-
 # ================= LOAD DATA =================
 @st.cache_data
 def load_data(file):
@@ -96,7 +54,7 @@ def load_data(file):
     else:
         df = pd.read_csv(file, low_memory=False)
 
-    # 🔥 CLEAN KPI (GLOBAL FIX)
+    # 🔥 CLEAN KPI
     skip_cols = ["SITE_ID","CELL_NAME","Band","DATE_ID","Hour_id"]
 
     for col in df.columns:
@@ -117,37 +75,17 @@ def load_data(file):
 
     if "Hour_id" in df.columns:
         df["DATETIME_ID"] = df["DATE_ID"] + pd.to_timedelta(df["Hour_id"], unit="h")
-        df["DATA_RESOLUTION"] = "Hourly"
     else:
         df["DATETIME_ID"] = df["DATE_ID"]
-        df["DATA_RESOLUTION"] = "Daily"
 
     df.rename(columns={"EUTRANCELLFDD":"CELL_NAME"}, inplace=True)
     df["SECTOR_GROUP"] = df["CELL_NAME"].apply(map_sector)
-
-    band_order = ["LTE900","LTE1800","LTE2100","LTE2300"]
-
-    df["Band"] = (
-        df["Band"].astype(str)
-        .str.upper()
-        .str.replace(" ","", regex=False)
-        .str.replace("-","", regex=False)
-    )
-
-    df["Band"] = pd.Categorical(df["Band"], categories=band_order, ordered=True)
 
     return df
 
 
 # ================= MAIN =================
 uploaded = st.file_uploader("Upload KPI CSV", type=["csv","gz"])
-
-layout_mode = st.sidebar.radio(
-    "Layout Mode",
-    ["Sector Combine","Band Matrix","Summary","Payload Stack"]
-)
-
-kab_df, target_df = load_sla_master()
 
 if uploaded:
 
@@ -186,29 +124,63 @@ if uploaded:
 
         df_filtered = df[df["SITE_ID"].isin(selected_sites)]
 
-        # ================= SAFE CHART =================
+        sectors = ["SEC1","SEC2","SEC3"]
+
         for kpi in kpi_list:
 
             st.markdown("---")
             st.subheader(kpi)
 
-            if kpi not in df_filtered.columns:
-                st.warning(f"{kpi} not found")
-                continue
+            cols = st.columns(3)
 
-            df_temp = df_filtered.copy()
+            for i, sec in enumerate(sectors):
 
-            # 🔥 FORCE NUMERIC AGAIN (ANTI ERROR)
-            df_temp[kpi] = pd.to_numeric(df_temp[kpi], errors='coerce')
-            df_temp = df_temp.dropna(subset=[kpi])
+                with cols[i]:
 
-            if df_temp.empty:
-                st.warning(f"{kpi} has no valid data")
-                continue
+                    st.markdown(f"### 📡 {sec}")
 
-            df_plot = df_temp.groupby("DATE_ID")[kpi].mean().reset_index()
+                    df_sector = df_filtered[df_filtered["SECTOR_GROUP"] == sec]
 
-            fig = px.line(df_plot, x="DATE_ID", y=kpi, markers=True)
-            fig = apply_universal_legend(fig)
+                    if df_sector.empty:
+                        st.info("No data")
+                        continue
 
-            st.plotly_chart(fig, use_container_width=True)
+                    if kpi not in df_sector.columns:
+                        st.warning("KPI not found")
+                        continue
+
+                    df_temp = df_sector.copy()
+
+                    # 🔥 FORCE NUMERIC (ANTI ERROR FINAL)
+                    df_temp[kpi] = pd.to_numeric(df_temp[kpi], errors='coerce')
+                    df_temp = df_temp.dropna(subset=[kpi])
+
+                    if df_temp.empty:
+                        st.warning("No valid data")
+                        continue
+
+                    df_grouped = (
+                        df_temp.groupby(["CELL_NAME","DATE_ID"])[kpi]
+                        .mean()
+                        .reset_index()
+                    )
+
+                    if kpi in traffic_kpi:
+                        fig = px.area(
+                            df_grouped,
+                            x="DATE_ID",
+                            y=kpi,
+                            color="CELL_NAME"
+                        )
+                    else:
+                        fig = px.line(
+                            df_grouped,
+                            x="DATE_ID",
+                            y=kpi,
+                            color="CELL_NAME",
+                            markers=True
+                        )
+
+                    fig = apply_universal_legend(fig)
+
+                    st.plotly_chart(fig, use_container_width=True)
