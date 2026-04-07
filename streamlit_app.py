@@ -98,22 +98,6 @@ def load_data(file):
 
     df.replace(["-", "NIL", "None", ""], pd.NA, inplace=True)
 
-    kpi_columns = [
-        "Intra-Frequency Handover Out Success Rate",
-        "inter_freq_HO",
-        "UL_INT_PUSCH",
-        "Average_CQI_nonHOME",
-        "Total_Traffic_Volume_new",
-        "DL_Resource_Block_Utilizing_Rate_New",
-        "UL_Resource_Block_Utilizing_Rate_New",
-        "Downlink_Traffic_Volume_New",
-        "Uplink_Traffic_Volume_New"
-    ]
-
-    for col in kpi_columns:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-
     df["DATE_ID"] = pd.to_datetime(df["DATE_ID"], errors="coerce")
 
     if "Hour_id" in df.columns:
@@ -188,122 +172,39 @@ if uploaded:
 
         df_filtered = df[df["SITE_ID"].isin(selected_sites)]
 
-        if kab_df is not None:
-            df_filtered = df_filtered.merge(
-                kab_df, left_on="SITE_ID", right_on="SiteID", how="left"
-            )
-
-        # ================= CHART =================
         if layout_mode in ["Sector Combine","Band Matrix"]:
 
             sectors = ["SEC1","SEC2","SEC3"]
 
             for kpi in kpi_list:
 
-                st.markdown("---")
                 st.subheader(kpi)
 
-                if layout_mode == "Sector Combine":
+                cols = st.columns(3)
 
-                    cols = st.columns(3)
+                for i, sec in enumerate(sectors):
+                    with cols[i]:
 
-                    for i, sec in enumerate(sectors):
-                        with cols[i]:
+                        df_sec = df_filtered[df_filtered["SECTOR_GROUP"] == sec]
 
-                            df_sec = df_filtered[df_filtered["SECTOR_GROUP"] == sec]
-                            if df_sec.empty:
-                                continue
+                        if df_sec.empty:
+                            continue
 
-                            df_g = df_sec.groupby(["CELL_NAME","DATE_ID"]).mean(numeric_only=True).reset_index()
-                            if kpi not in df_g.columns:
-                                continue
+                        df_g = df_sec.groupby(["CELL_NAME","DATE_ID"]).mean(numeric_only=True).reset_index()
 
-                            fig = px.line(df_g, x="DATE_ID", y=kpi, color="CELL_NAME")
+                        if kpi not in df_g.columns:
+                            continue
 
-                            # ===== SMART DATE + LOCK RANGE =====
-                            days = (df_g["DATE_ID"].max() - df_g["DATE_ID"].min()).days
+                        fig = px.line(df_g, x="DATE_ID", y=kpi, color="CELL_NAME")
 
-                            if days <= 10:
-                                dtick_val = "D1"
-                            elif days <= 30:
-                                dtick_val = "D2"
-                            elif days <= 90:
-                                dtick_val = "D7"
-                            else:
-                                dtick_val = "M1"
+                        days = (df_g["DATE_ID"].max() - df_g["DATE_ID"].min()).days
+                        dtick_val = "D1" if days <= 10 else "D7"
 
-                            fig.update_xaxes(
-                                dtick=dtick_val,
-                                tickformat="%d-%b",
-                                tickangle=-45,
-                                range=[df_g["DATE_ID"].min(), df_g["DATE_ID"].max()]
-                            )
+                        fig.update_xaxes(
+                            dtick=dtick_val,
+                            tickformat="%d-%b",
+                            tickangle=-45,
+                            range=[df_filtered["DATE_ID"].min(), df_filtered["DATE_ID"].max()]  # ✅ FIX
+                        )
 
-                            th = get_sla_threshold(df_sec, kpi, target_df)
-                            if pd.notna(th):
-                                fig.add_hline(
-                                    y=float(th),
-                                    line_dash="dash",
-                                    line_color="red",
-                                    annotation_text=f"{float(th):.2f}",
-                                    annotation_position="top left"
-                                )
-
-                            st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
-
-                else:
-
-                    bands = sorted(df_filtered["Band"].dropna().unique())
-
-                    for band in bands:
-
-                        st.markdown(f"### 📡 {band}")
-                        cols = st.columns(3)
-
-                        for i, sec in enumerate(sectors):
-                            with cols[i]:
-
-                                df_sec = df_filtered[
-                                    (df_filtered["Band"] == band) &
-                                    (df_filtered["SECTOR_GROUP"] == sec)
-                                ]
-
-                                if df_sec.empty:
-                                    continue
-
-                                df_g = df_sec.groupby(["CELL_NAME","DATE_ID"]).mean(numeric_only=True).reset_index()
-                                if kpi not in df_g.columns:
-                                    continue
-
-                                fig = px.line(df_g, x="DATE_ID", y=kpi, color="CELL_NAME")
-
-                                # ===== SMART DATE + LOCK RANGE =====
-                                days = (df_g["DATE_ID"].max() - df_g["DATE_ID"].min()).days
-
-                                if days <= 10:
-                                    dtick_val = "D1"
-                                elif days <= 30:
-                                    dtick_val = "D2"
-                                elif days <= 90:
-                                    dtick_val = "D7"
-                                else:
-                                    dtick_val = "M1"
-
-                                fig.update_xaxes(
-                                    dtick=dtick_val,
-                                    tickformat="%d-%b",
-                                    tickangle=-45,
-                                    range=[df_g["DATE_ID"].min(), df_g["DATE_ID"].max()]
-                                )
-
-                                th = get_sla_threshold(df_sec, kpi, target_df)
-                                if pd.notna(th):
-                                    fig.add_hline(
-                                        y=float(th),
-                                        line_dash="dash",
-                                        line_color="red",
-                                        annotation_text=f"{float(th):.2f}",
-                                        annotation_position="top left"
-                                    )
-
-                                st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
+                        st.plotly_chart(fig, use_container_width=True)
