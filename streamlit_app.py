@@ -96,16 +96,14 @@ def load_data(file):
     else:
         df = pd.read_csv(file, low_memory=False)
 
-    # 🔥 AUTO FIX KPI (CORE FIX)
+    # 🔥 CLEAN KPI (GLOBAL FIX)
     skip_cols = ["SITE_ID","CELL_NAME","Band","DATE_ID","Hour_id"]
 
     for col in df.columns:
-
         if col in skip_cols:
             continue
 
         if df[col].dtype == "object":
-
             df[col] = (
                 df[col]
                 .astype(str)
@@ -113,7 +111,6 @@ def load_data(file):
                 .str.replace(',', '.', regex=False)
                 .replace(['', 'None', 'nan'], None)
             )
-
             df[col] = pd.to_numeric(df[col], errors='coerce')
 
     df["DATE_ID"] = pd.to_datetime(df["DATE_ID"])
@@ -156,8 +153,6 @@ if uploaded:
 
     df = load_data(uploaded)
 
-    st.success("✅ Data Loaded")
-
     summary_kpi = [
         "RRC Setup Success Rate (Service)",
         "ERAB_Setup_Success_Rate_All_New",
@@ -191,17 +186,7 @@ if uploaded:
 
         df_filtered = df[df["SITE_ID"].isin(selected_sites)]
 
-        if kab_df is not None:
-            df_filtered = df_filtered.merge(
-                kab_df,
-                left_on="SITE_ID",
-                right_on="SiteID",
-                how="left"
-            )
-
-        st.success(f"✅ Data Ready: {len(df_filtered)} rows")
-
-        # ================= CHART =================
+        # ================= SAFE CHART =================
         for kpi in kpi_list:
 
             st.markdown("---")
@@ -211,11 +196,17 @@ if uploaded:
                 st.warning(f"{kpi} not found")
                 continue
 
-            df_plot = df_filtered.groupby("DATE_ID")[kpi].mean().reset_index()
+            df_temp = df_filtered.copy()
 
-            if df_plot[kpi].dropna().empty:
-                st.warning(f"{kpi} has no data")
+            # 🔥 FORCE NUMERIC AGAIN (ANTI ERROR)
+            df_temp[kpi] = pd.to_numeric(df_temp[kpi], errors='coerce')
+            df_temp = df_temp.dropna(subset=[kpi])
+
+            if df_temp.empty:
+                st.warning(f"{kpi} has no valid data")
                 continue
+
+            df_plot = df_temp.groupby("DATE_ID")[kpi].mean().reset_index()
 
             fig = px.line(df_plot, x="DATE_ID", y=kpi, markers=True)
             fig = apply_universal_legend(fig)
