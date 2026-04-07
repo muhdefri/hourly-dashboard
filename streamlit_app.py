@@ -1,5 +1,3 @@
-# (SEMUA BAGIAN ATAS TETAP SAMA — TIDAK DIUBAH)
-
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -222,8 +220,22 @@ if uploaded:
 
                             fig = px.line(df_g, x="DATE_ID", y=kpi, color="CELL_NAME")
 
-                            # ✅ DATE FIX
-                            fig.update_xaxes(dtick="D1", tickformat="%d-%b", tickangle=-45)
+                            # ===== SMART DATE =====
+                            days = (df_g["DATE_ID"].max() - df_g["DATE_ID"].min()).days
+                            if days <= 10:
+                                dtick_val = "D1"
+                            elif days <= 30:
+                                dtick_val = "D2"
+                            elif days <= 90:
+                                dtick_val = "D7"
+                            else:
+                                dtick_val = "M1"
+
+                            fig.update_xaxes(
+                                dtick=dtick_val,
+                                tickformat="%d-%b",
+                                tickangle=-45
+                            )
 
                             th = get_sla_threshold(df_sec, kpi, target_df)
                             if pd.notna(th):
@@ -263,8 +275,22 @@ if uploaded:
 
                                 fig = px.line(df_g, x="DATE_ID", y=kpi, color="CELL_NAME")
 
-                                # ✅ DATE FIX
-                                fig.update_xaxes(dtick="D1", tickformat="%d-%b", tickangle=-45)
+                                # ===== SMART DATE =====
+                                days = (df_g["DATE_ID"].max() - df_g["DATE_ID"].min()).days
+                                if days <= 10:
+                                    dtick_val = "D1"
+                                elif days <= 30:
+                                    dtick_val = "D2"
+                                elif days <= 90:
+                                    dtick_val = "D7"
+                                else:
+                                    dtick_val = "M1"
+
+                                fig.update_xaxes(
+                                    dtick=dtick_val,
+                                    tickformat="%d-%b",
+                                    tickangle=-45
+                                )
 
                                 th = get_sla_threshold(df_sec, kpi, target_df)
                                 if pd.notna(th):
