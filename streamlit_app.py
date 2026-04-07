@@ -209,14 +209,16 @@ if uploaded:
                         else:
                             dtick_val = "M1"
 
+                        # ===== FIX LAST KPI DATE =====
+                        last_valid_date = df_filtered[df_filtered[kpi].notna()]["DATE_ID"].max()
+
                         fig.update_xaxes(
                             dtick=dtick_val,
                             tickformat="%d-%b",
                             tickangle=-45,
-                            range=[df_filtered["DATE_ID"].min(), df_filtered["DATE_ID"].max()]
+                            range=[df_filtered["DATE_ID"].min(), last_valid_date]
                         )
 
-                        # ===== LEGEND BAWAH =====
                         fig = apply_universal_legend(fig)
 
                         st.plotly_chart(fig, use_container_width=True)
