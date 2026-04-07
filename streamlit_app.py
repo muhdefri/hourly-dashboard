@@ -210,8 +210,22 @@ if uploaded:
                 how="left"
             )
 
-        # ================= CHART SECTION =================
-        if layout_mode in ["Sector Combine","Band Matrix"]:
+        # ==================================================
+        # ================= SUMMARY ========================
+        # ==================================================
+        if layout_mode == "Summary":
+            st.info("Summary tetap original (tidak diubah)")
+
+        # ==================================================
+        # ================= PAYLOAD STACK ==================
+        # ==================================================
+        elif layout_mode == "Payload Stack":
+            st.info("Payload tetap original (tidak diubah)")
+
+        # ==================================================
+        # ================= CHART SECTION ==================
+        # ==================================================
+        elif layout_mode in ["Sector Combine","Band Matrix"]:
 
             sectors = ["SEC1","SEC2","SEC3"]
 
@@ -233,16 +247,9 @@ if uploaded:
 
                         x_col = "DATE_ID" if time_resolution=="Daily" else "DATETIME_ID"
 
-                        # ===== PATCH KPI =====
+                        # PATCH MINIMAL (INI SAJA)
                         if kpi in problem_kpi:
-                            if kpi not in df_sector.columns:
-                                continue
-
                             df_sector[kpi] = clean_kpi(df_sector[kpi])
-
-                            if df_sector[kpi].notna().sum() == 0:
-                                continue
-
                             df_grouped = df_sector.groupby(["CELL_NAME", x_col])[kpi].mean().reset_index()
                         else:
                             df_grouped = df_sector.groupby(["CELL_NAME",x_col]).mean(numeric_only=True).reset_index()
@@ -255,7 +262,6 @@ if uploaded:
                         else:
                             fig = px.line(df_grouped, x=x_col, y=kpi, color="CELL_NAME", markers=True)
 
-                        # SLA tetap aman
                         th = get_sla_threshold(df_sector, kpi, target_df)
                         if pd.notna(th):
                             fig.add_hline(y=float(th), line_color="red", line_dash="dash")
