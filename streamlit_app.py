@@ -210,9 +210,7 @@ if uploaded:
                 how="left"
             )
 
-        # ==================================================
-        # ================= CHART SECTION ==================
-        # ==================================================
+        # ================= CHART SECTION =================
         if layout_mode in ["Sector Combine","Band Matrix"]:
 
             sectors = ["SEC1","SEC2","SEC3"]
@@ -237,7 +235,6 @@ if uploaded:
 
                         # ===== PATCH KPI =====
                         if kpi in problem_kpi:
-
                             if kpi not in df_sector.columns:
                                 continue
 
@@ -247,7 +244,6 @@ if uploaded:
                                 continue
 
                             df_grouped = df_sector.groupby(["CELL_NAME", x_col])[kpi].mean().reset_index()
-
                         else:
                             df_grouped = df_sector.groupby(["CELL_NAME",x_col]).mean(numeric_only=True).reset_index()
 
@@ -259,16 +255,10 @@ if uploaded:
                         else:
                             fig = px.line(df_grouped, x=x_col, y=kpi, color="CELL_NAME", markers=True)
 
-                        # ===== SLA LINE (AMAN) =====
+                        # SLA tetap aman
                         th = get_sla_threshold(df_sector, kpi, target_df)
-
                         if pd.notna(th):
-                            fig.add_hline(
-                                y=float(th),
-                                line_color="red",
-                                line_dash="dash",
-                                annotation_text=f"{float(th):.2f}"
-                            )
+                            fig.add_hline(y=float(th), line_color="red", line_dash="dash")
 
                         fig = apply_universal_legend(fig)
                         st.plotly_chart(fig, use_container_width=True)
