@@ -96,7 +96,7 @@ def load_data(file):
     else:
         df = pd.read_csv(file, low_memory=False)
 
-    # 🔥 AUTO CLEAN KPI (FIX UTAMA)
+    # 🔥 AUTO FIX KPI (CORE FIX)
     skip_cols = ["SITE_ID","CELL_NAME","Band","DATE_ID","Hour_id"]
 
     for col in df.columns:
@@ -156,6 +156,8 @@ if uploaded:
 
     df = load_data(uploaded)
 
+    st.success("✅ Data Loaded")
+
     summary_kpi = [
         "RRC Setup Success Rate (Service)",
         "ERAB_Setup_Success_Rate_All_New",
@@ -180,20 +182,6 @@ if uploaded:
 
     kpi_list = summary_kpi + traffic_kpi
 
-    if df["DATA_RESOLUTION"].iloc[0] == "Hourly":
-        time_resolution = st.sidebar.radio("Time Resolution", ["Hourly","Daily"])
-    else:
-        time_resolution = "Daily"
-        st.sidebar.info("📅 Daily File Detected")
-
-    start_date = st.sidebar.date_input("Start Date", df["DATE_ID"].min().date())
-    end_date = st.sidebar.date_input("End Date", df["DATE_ID"].max().date())
-
-    df = df[
-        (df["DATE_ID"] >= pd.to_datetime(start_date)) &
-        (df["DATE_ID"] <= pd.to_datetime(end_date))
-    ]
-
     selected_sites = st.multiselect(
         "Select Site ID",
         sorted(df["SITE_ID"].unique())
@@ -211,4 +199,25 @@ if uploaded:
                 how="left"
             )
 
-        # (SEMUA BAGIAN BAWAH TETAP SAMA — TIDAK DIUBAH)
+        st.success(f"✅ Data Ready: {len(df_filtered)} rows")
+
+        # ================= CHART =================
+        for kpi in kpi_list:
+
+            st.markdown("---")
+            st.subheader(kpi)
+
+            if kpi not in df_filtered.columns:
+                st.warning(f"{kpi} not found")
+                continue
+
+            df_plot = df_filtered.groupby("DATE_ID")[kpi].mean().reset_index()
+
+            if df_plot[kpi].dropna().empty:
+                st.warning(f"{kpi} has no data")
+                continue
+
+            fig = px.line(df_plot, x="DATE_ID", y=kpi, markers=True)
+            fig = apply_universal_legend(fig)
+
+            st.plotly_chart(fig, use_container_width=True)
