@@ -46,6 +46,7 @@ def apply_universal_legend(fig):
     )
     return fig
 
+
 # ================= SECTOR MAP =================
 def map_sector(cell_name):
     name = str(cell_name).upper()
@@ -67,6 +68,7 @@ def map_sector(cell_name):
 
     return "UNKNOWN"
 
+
 # ================= SLA LOAD =================
 @st.cache_data
 def load_sla_master():
@@ -78,6 +80,7 @@ def load_sla_master():
     target_df = pd.read_excel(path, sheet_name="KPI Target", header=2)
     target_df.columns = target_df.columns.str.strip().str.lower()
     return kab_df, target_df
+
 
 # ================= SLA LOOKUP =================
 def get_sla_threshold(df_scope, kpi, target_df):
@@ -106,6 +109,7 @@ def get_sla_threshold(df_scope, kpi, target_df):
         return None
 
     return None
+
 
 # ================= LOAD DATA =================
 @st.cache_data
@@ -140,6 +144,7 @@ def load_data(file):
     df["Band"] = pd.Categorical(df["Band"], categories=band_order, ordered=True)
 
     return df
+
 
 # ================= MAIN =================
 uploaded = st.file_uploader("Upload KPI CSV", type=["csv","gz"])
@@ -210,17 +215,14 @@ if uploaded:
                 how="left"
             )
 
-        # ================= SUMMARY =================
+        # ================= ORIGINAL LOGIC (TIDAK DIUBAH) =================
+
         if layout_mode == "Summary":
             st.markdown("## Site Level Performance")
-            # >>> ORIGINAL CODE KAMU TETAP DI SINI (TIDAK DIUBAH)
 
-        # ================= PAYLOAD STACK =================
         elif layout_mode == "Payload Stack":
             st.header("📦 Total Traffic Volume (GB)")
-            # >>> ORIGINAL CODE KAMU TETAP DI SINI
 
-        # ================= CHART =================
         elif layout_mode in ["Sector Combine","Band Matrix"]:
 
             sectors = ["SEC1","SEC2","SEC3"]
@@ -243,7 +245,7 @@ if uploaded:
 
                         x_col = "DATE_ID" if time_resolution=="Daily" else "DATETIME_ID"
 
-                        # ===== PATCH ONLY HERE =====
+                        # 🔥 PATCH DISINI SAJA
                         if kpi in problem_kpi:
                             df_sector[kpi] = clean_kpi(df_sector[kpi])
                             df_grouped = df_sector.groupby(["CELL_NAME", x_col])[kpi].mean().reset_index()
