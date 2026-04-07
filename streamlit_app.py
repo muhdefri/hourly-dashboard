@@ -1,3 +1,93 @@
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+import re
+from pathlib import Path
+
+st.set_page_config(layout="wide")
+st.title("📊 LTE MULTI SITE KPI DASHBOARD")
+
+# ================= LEGEND =================
+def apply_universal_legend(fig):
+    fig.update_layout(
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=-0.35,
+            xanchor="center",
+            x=0.5,
+            font=dict(size=9)
+        ),
+        margin=dict(l=20, r=20, t=40, b=150)
+    )
+    return fig
+
+
+# ================= SECTOR MAP =================
+def map_sector(cell_name):
+    name = str(cell_name).upper()
+
+    match_rl = re.search(r'RL(\d)', name)
+    if match_rl:
+        return f"SEC{match_rl.group(1)}"
+
+    match_rr = re.search(r'RR(\d)', name)
+    if match_rr:
+        return f"SEC{match_rr.group(1)}"
+
+    match = re.search(r'(\d+)$', name)
+    if match:
+        last_digit = int(match.group(1)) % 10
+        if last_digit in [1,4,7]: return "SEC1"
+        elif last_digit in [2,5,8]: return "SEC2"
+        elif last_digit in [3,6,9]: return "SEC3"
+
+    return "UNKNOWN"
+
+
+# ================= SLA LOAD =================
+@st.cache_data
+def load_sla_master():
+    path = Path("src/SLA_MASTER.xlsx")
+    if not path.exists():
+        return None, None
+
+    kab_df = pd.read_excel(path, sheet_name="KABUPATEN")
+    target_df = pd.read_excel(path, sheet_name="KPI Target", header=2)
+    target_df.columns = target_df.columns.str.strip().str.lower()
+    return kab_df, target_df
+
+
+# ================= SLA LOOKUP =================
+def get_sla_threshold(df_scope, kpi, target_df):
+    if target_df is None or df_scope.empty:
+        return None
+
+    try:
+        kab = str(df_scope["KABUPATEN"].dropna().iloc[0]).lower().strip()
+        band = str(df_scope["Band"].dropna().unique()[0]).lower().strip()
+
+        th = target_df[
+            (target_df["kabupaten"].str.lower().str.strip() == kab) &
+            (target_df["band"].str.lower().str.strip() == band)
+        ]
+
+        col_match = [
+            c for c in target_df.columns
+            if c.replace("_","").replace(" ","") ==
+            kpi.lower().replace("_","").replace(" ","")
+        ]
+
+        if not th.empty and col_match:
+            return th[col_match[0]].values[0]
+
+    except:
+        return None
+
+    return None
+
+
+# ================= LOAD DATA =================
 @st.cache_data
 def load_data(file):
 
@@ -6,28 +96,16 @@ def load_data(file):
     else:
         df = pd.read_csv(file, low_memory=False)
 
-    # ================= FIX KPI DATA TYPE =================
-    kpi_columns = [
-        "RRC Setup Success Rate (Service)",
-        "ERAB_Setup_Success_Rate_All_New",
-        "Session_Setup_Success_Rate_New",
-        "Session_Abnormal_Release_New",
-        "Intra-Frequency Handover Out Success Rate",
-        "inter_freq_HO",
-        "Radio_Network_Availability_Rate",
-        "UL_INT_PUSCH",
-        "Average_CQI_nonHOME",
-        "SE_New",
-        "Total_Traffic_Volume_new",
-        "DL_Resource_Block_Utilizing_Rate_New",
-        "UL_Resource_Block_Utilizing_Rate_New",
-        "Downlink_Traffic_Volume_New",
-        "Uplink_Traffic_Volume_New",
-        "Active User DL"
-    ]
+    # 🔥 AUTO CLEAN KPI (FIX UTAMA)
+    skip_cols = ["SITE_ID","CELL_NAME","Band","DATE_ID","Hour_id"]
 
-    for col in kpi_columns:
-        if col in df.columns:
+    for col in df.columns:
+
+        if col in skip_cols:
+            continue
+
+        if df[col].dtype == "object":
+
             df[col] = (
                 df[col]
                 .astype(str)
@@ -35,8 +113,8 @@ def load_data(file):
                 .str.replace(',', '.', regex=False)
                 .replace(['', 'None', 'nan'], None)
             )
+
             df[col] = pd.to_numeric(df[col], errors='coerce')
-    # ====================================================
 
     df["DATE_ID"] = pd.to_datetime(df["DATE_ID"])
 
@@ -62,3 +140,75 @@ def load_data(file):
     df["Band"] = pd.Categorical(df["Band"], categories=band_order, ordered=True)
 
     return df
+
+
+# ================= MAIN =================
+uploaded = st.file_uploader("Upload KPI CSV", type=["csv","gz"])
+
+layout_mode = st.sidebar.radio(
+    "Layout Mode",
+    ["Sector Combine","Band Matrix","Summary","Payload Stack"]
+)
+
+kab_df, target_df = load_sla_master()
+
+if uploaded:
+
+    df = load_data(uploaded)
+
+    summary_kpi = [
+        "RRC Setup Success Rate (Service)",
+        "ERAB_Setup_Success_Rate_All_New",
+        "Session_Setup_Success_Rate_New",
+        "Session_Abnormal_Release_New",
+        "Intra-Frequency Handover Out Success Rate",
+        "inter_freq_HO",
+        "Radio_Network_Availability_Rate",
+        "UL_INT_PUSCH",
+        "Average_CQI_nonHOME",
+        "SE_New"
+    ]
+
+    traffic_kpi = [
+        "Total_Traffic_Volume_new",
+        "DL_Resource_Block_Utilizing_Rate_New",
+        "UL_Resource_Block_Utilizing_Rate_New",
+        "Downlink_Traffic_Volume_New",
+        "Uplink_Traffic_Volume_New",
+        "Active User DL"
+    ]
+
+    kpi_list = summary_kpi + traffic_kpi
+
+    if df["DATA_RESOLUTION"].iloc[0] == "Hourly":
+        time_resolution = st.sidebar.radio("Time Resolution", ["Hourly","Daily"])
+    else:
+        time_resolution = "Daily"
+        st.sidebar.info("📅 Daily File Detected")
+
+    start_date = st.sidebar.date_input("Start Date", df["DATE_ID"].min().date())
+    end_date = st.sidebar.date_input("End Date", df["DATE_ID"].max().date())
+
+    df = df[
+        (df["DATE_ID"] >= pd.to_datetime(start_date)) &
+        (df["DATE_ID"] <= pd.to_datetime(end_date))
+    ]
+
+    selected_sites = st.multiselect(
+        "Select Site ID",
+        sorted(df["SITE_ID"].unique())
+    )
+
+    if selected_sites:
+
+        df_filtered = df[df["SITE_ID"].isin(selected_sites)]
+
+        if kab_df is not None:
+            df_filtered = df_filtered.merge(
+                kab_df,
+                left_on="SITE_ID",
+                right_on="SiteID",
+                how="left"
+            )
+
+        # (SEMUA BAGIAN BAWAH TETAP SAMA — TIDAK DIUBAH)
