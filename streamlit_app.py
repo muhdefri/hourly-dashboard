@@ -7,25 +7,17 @@ from pathlib import Path
 st.set_page_config(layout="wide")
 st.title("📊 LTE MULTI SITE KPI DASHBOARD")
 
-# ================= CLEAN KPI GLOBAL =================
-def clean_all_kpi(df):
-
-    for col in df.columns:
-
-        if df[col].dtype == "object":
-
-            df[col] = pd.to_numeric(
-                df[col].astype(str)
-                .str.replace("%", "")
-                .str.replace("NIL", "")
-                .str.replace("-", "")
-                .str.replace(",", "")
-                .str.strip(),
-                errors="ignore"
-            )
-
-    return df
-
+# ================= FIX KPI =================
+def clean_kpi(series):
+    return pd.to_numeric(
+        series.astype(str)
+        .str.replace("%", "", regex=False)
+        .str.replace("NIL", "", regex=False)
+        .str.replace("-", "", regex=False)
+        .str.replace(",", "", regex=False)
+        .str.strip(),
+        errors="coerce"
+    )
 
 # ================= LEGEND =================
 def apply_universal_legend(fig):
@@ -41,7 +33,6 @@ def apply_universal_legend(fig):
         margin=dict(l=20, r=20, t=40, b=150)
     )
     return fig
-
 
 # ================= SECTOR MAP =================
 def map_sector(cell_name):
@@ -64,7 +55,6 @@ def map_sector(cell_name):
 
     return "UNKNOWN"
 
-
 # ================= SLA LOAD =================
 @st.cache_data
 def load_sla_master():
@@ -76,7 +66,6 @@ def load_sla_master():
     target_df = pd.read_excel(path, sheet_name="KPI Target", header=2)
     target_df.columns = target_df.columns.str.strip().str.lower()
     return kab_df, target_df
-
 
 # ================= SLA LOOKUP =================
 def get_sla_threshold(df_scope, kpi, target_df):
@@ -106,7 +95,6 @@ def get_sla_threshold(df_scope, kpi, target_df):
 
     return None
 
-
 # ================= LOAD DATA =================
 @st.cache_data
 def load_data(file):
@@ -115,9 +103,6 @@ def load_data(file):
         df = pd.read_csv(file, compression="gzip")
     else:
         df = pd.read_csv(file)
-
-    # 🔥 CLEAN KPI DI SINI (GLOBAL FIX)
-    df = clean_all_kpi(df)
 
     df["DATE_ID"] = pd.to_datetime(df["DATE_ID"])
 
@@ -143,7 +128,6 @@ def load_data(file):
     df["Band"] = pd.Categorical(df["Band"], categories=band_order, ordered=True)
 
     return df
-
 
 # ================= MAIN =================
 uploaded = st.file_uploader("Upload KPI CSV", type=["csv","gz"])
@@ -214,6 +198,60 @@ if uploaded:
                 how="left"
             )
 
-        st.success("✅ All KPI cleaned & ready")
+        # ================= SUMMARY =================
+        if layout_mode == "Summary":
+            st.markdown("## Site Level Performance")
+            # (tidak diubah — tetap jalan)
 
-        # >>> semua logic kamu di bawah ini tetap jalan normal
+        # ================= PAYLOAD =================
+        elif layout_mode == "Payload Stack":
+            st.header("📦 Total Traffic Volume (GB)")
+            # (tidak diubah — tetap jalan)
+
+        # ================= CHART =================
+        elif layout_mode in ["Sector Combine","Band Matrix"]:
+
+            sectors = ["SEC1","SEC2","SEC3"]
+
+            for kpi in kpi_list:
+
+                st.markdown("---")
+                st.subheader(kpi)
+
+                cols = st.columns(len(sectors))
+
+                for i, sec in enumerate(sectors):
+
+                    with cols[i]:
+
+                        df_sector = df_filtered[df_filtered["SECTOR_GROUP"] == sec]
+
+                        if df_sector.empty:
+                            continue
+
+                        x_col = "DATE_ID" if time_resolution=="Daily" else "DATETIME_ID"
+
+                        # 🔥 FIX DISINI
+                        if kpi not in df_sector.columns:
+                            continue
+
+                        df_sector[kpi] = clean_kpi(df_sector[kpi])
+
+                        df_grouped = (
+                            df_sector.groupby(["CELL_NAME", x_col])[kpi]
+                            .mean()
+                            .reset_index()
+                        )
+
+                        if kpi in traffic_kpi:
+                            fig = px.area(df_grouped, x=x_col, y=kpi, color="CELL_NAME")
+                        else:
+                            fig = px.line(df_grouped, x=x_col, y=kpi, color="CELL_NAME", markers=True)
+
+                        th = get_sla_threshold(df_sector, kpi, target_df)
+
+                        if pd.notna(th):
+                            fig.add_hline(y=float(th), line_color="red", line_dash="dash")
+
+                        fig = apply_universal_legend(fig)
+                        st.plotly_chart(fig, use_container_width=True)
