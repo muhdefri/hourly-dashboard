@@ -23,7 +23,7 @@ def apply_universal_legend(fig):
     return fig
 
 
-# ================= SECTOR MAP =================
+# ================= SECTOR =================
 def map_sector(cell_name):
     name = str(cell_name).upper()
 
@@ -60,15 +60,19 @@ def load_sla_master():
 
 def get_sla_threshold(df_scope, kpi, target_df):
     try:
-        kab = str(df_scope["KABUPATEN"].dropna().iloc[0]).lower()
-        band = str(df_scope["Band"].dropna().iloc[0]).lower()
+        kab = str(df_scope["KABUPATEN"].dropna().iloc[0]).lower().strip()
+        band = str(df_scope["Band"].dropna().iloc[0]).lower().strip()
 
         df = target_df[
-            (target_df["kabupaten"] == kab) &
-            (target_df["band"] == band)
+            (target_df["kabupaten"].str.strip().str.lower() == kab) &
+            (target_df["band"].str.strip().str.lower() == band)
         ]
 
-        col = [c for c in target_df.columns if c.replace("_","")==kpi.lower().replace("_","")]
+        col = [
+            c for c in target_df.columns
+            if c.replace("_","").replace(" ","") ==
+            kpi.lower().replace("_","").replace(" ","")
+        ]
 
         if not df.empty and col:
             return df[col[0]].values[0]
@@ -82,17 +86,27 @@ def get_sla_threshold(df_scope, kpi, target_df):
 @st.cache_data
 def load_data(file):
 
-    df = pd.read_csv(file, compression="gzip" if file.name.endswith(".gz") else None)
+    df = pd.read_csv(
+        file,
+        compression="gzip" if file.name.endswith(".gz") else None,
+        low_memory=False
+    )
 
-    # CLEAN KPI
+    skip_cols = ["SITE_ID","CELL_NAME","Band","DATE_ID","Hour_id"]
+
     for col in df.columns:
-        if df[col].dtype == "object":
-            df[col] = (
-                df[col].astype(str)
-                .str.replace('%','')
-                .str.replace(',','.')
-            )
-            df[col] = pd.to_numeric(df[col], errors='coerce')
+        if col in skip_cols:
+            continue
+
+        df[col] = (
+            df[col]
+            .astype(str)
+            .str.replace('%','', regex=False)
+            .str.replace(',','.', regex=False)
+            .replace(['', 'None', 'nan'], None)
+        )
+
+        df[col] = pd.to_numeric(df[col], errors='coerce')
 
     df["DATE_ID"] = pd.to_datetime(df["DATE_ID"])
 
@@ -102,9 +116,15 @@ def load_data(file):
         df["DATETIME_ID"] = df["DATE_ID"]
 
     df.rename(columns={"EUTRANCELLFDD":"CELL_NAME"}, inplace=True)
+
     df["SECTOR_GROUP"] = df["CELL_NAME"].apply(map_sector)
 
-    df["Band"] = df["Band"].astype(str).str.upper().str.replace(" ","").str.replace("-","")
+    df["Band"] = (
+        df["Band"].astype(str)
+        .str.upper()
+        .str.replace(" ","", regex=False)
+        .str.replace("-","", regex=False)
+    )
 
     return df
 
@@ -123,24 +143,33 @@ if uploaded:
 
     df = load_data(uploaded)
 
-    kpi_list = [c for c in df.columns if c not in [
-        "SITE_ID","CELL_NAME","Band","DATE_ID","DATETIME_ID","Hour_id","SECTOR_GROUP"
-    ]]
+    kpi_list = [
+        c for c in df.columns
+        if c not in ["SITE_ID","CELL_NAME","Band","DATE_ID","DATETIME_ID","Hour_id","SECTOR_GROUP"]
+    ]
 
-    # FILTER
+    # ================= FILTER =================
     start_date = st.sidebar.date_input("Start Date", df["DATE_ID"].min().date())
     end_date = st.sidebar.date_input("End Date", df["DATE_ID"].max().date())
 
-    df = df[(df["DATE_ID"]>=pd.to_datetime(start_date)) & (df["DATE_ID"]<=pd.to_datetime(end_date))]
+    df = df[
+        (df["DATE_ID"] >= pd.to_datetime(start_date)) &
+        (df["DATE_ID"] <= pd.to_datetime(end_date))
+    ]
 
-    sites = st.multiselect("Select Site ID", sorted(df["SITE_ID"].unique()))
+    selected_sites = st.multiselect("Select Site ID", sorted(df["SITE_ID"].unique()))
 
-    if sites:
+    if selected_sites:
 
-        df_filtered = df[df["SITE_ID"].isin(sites)]
+        df_filtered = df[df["SITE_ID"].isin(selected_sites)]
 
         if kab_df is not None:
-            df_filtered = df_filtered.merge(kab_df, left_on="SITE_ID", right_on="SiteID", how="left")
+            df_filtered = df_filtered.merge(
+                kab_df,
+                left_on="SITE_ID",
+                right_on="SiteID",
+                how="left"
+            )
 
         x_col = "DATE_ID"
 
@@ -164,8 +193,9 @@ if uploaded:
                 html += f"<tr><td>{kpi}</td>"
 
                 vals = []
+
                 for d in unique_days:
-                    val = df_filtered[df_filtered["DATE_ID"].dt.date==d][kpi].mean()
+                    val = df_filtered[df_filtered["DATE_ID"].dt.date == d][kpi].mean()
                     vals.append(val)
                     html += f"<td>{round(val,2) if pd.notna(val) else ''}</td>"
 
@@ -211,11 +241,20 @@ if uploaded:
 
                     with cols[i]:
 
-                        df_sec = df_filtered[df_filtered["SECTOR_GROUP"]==sec]
+                        df_sec = df_filtered[df_filtered["SECTOR_GROUP"] == sec]
 
-                        if df_sec.empty: continue
+                        if df_sec.empty:
+                            continue
 
-                        df_plot = df_sec.groupby(["CELL_NAME",x_col])[kpi].mean().reset_index()
+                        df_temp = df_sec.copy()
+                        df_temp[kpi] = pd.to_numeric(df_temp[kpi], errors='coerce')
+                        df_temp = df_temp.dropna(subset=[kpi])
+
+                        if df_temp.empty:
+                            st.write("-")
+                            continue
+
+                        df_plot = df_temp.groupby(["CELL_NAME", x_col])[kpi].mean().reset_index()
 
                         fig = px.line(df_plot, x=x_col, y=kpi, color="CELL_NAME")
 
@@ -236,12 +275,10 @@ if uploaded:
                 st.markdown("---")
                 st.subheader(kpi)
 
-                # HEADER
-                cols = st.columns(len(sectors))
+                header_cols = st.columns(len(sectors))
                 for i, sec in enumerate(sectors):
-                    cols[i].markdown(f"### {sec}")
+                    header_cols[i].markdown(f"### {sec}")
 
-                # ROWS
                 for band in bands:
 
                     st.markdown(f"#### {band}")
@@ -253,15 +290,23 @@ if uploaded:
                         with cols[i]:
 
                             df_sec = df_filtered[
-                                (df_filtered["SECTOR_GROUP"]==sec) &
-                                (df_filtered["Band"]==band)
+                                (df_filtered["SECTOR_GROUP"] == sec) &
+                                (df_filtered["Band"] == band)
                             ]
 
                             if df_sec.empty:
                                 st.write("-")
                                 continue
 
-                            df_plot = df_sec.groupby(["CELL_NAME",x_col])[kpi].mean().reset_index()
+                            df_temp = df_sec.copy()
+                            df_temp[kpi] = pd.to_numeric(df_temp[kpi], errors='coerce')
+                            df_temp = df_temp.dropna(subset=[kpi])
+
+                            if df_temp.empty:
+                                st.write("-")
+                                continue
+
+                            df_plot = df_temp.groupby(["CELL_NAME", x_col])[kpi].mean().reset_index()
 
                             fig = px.line(df_plot, x=x_col, y=kpi, color="CELL_NAME")
 
