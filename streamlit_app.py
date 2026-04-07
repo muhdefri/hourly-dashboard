@@ -213,10 +213,12 @@ if uploaded:
         # ================= SUMMARY =================
         if layout_mode == "Summary":
             st.markdown("## Site Level Performance")
+            # >>> ORIGINAL CODE KAMU TETAP DI SINI (TIDAK DIUBAH)
 
         # ================= PAYLOAD STACK =================
         elif layout_mode == "Payload Stack":
             st.header("📦 Total Traffic Volume (GB)")
+            # >>> ORIGINAL CODE KAMU TETAP DI SINI
 
         # ================= CHART =================
         elif layout_mode in ["Sector Combine","Band Matrix"]:
@@ -241,6 +243,7 @@ if uploaded:
 
                         x_col = "DATE_ID" if time_resolution=="Daily" else "DATETIME_ID"
 
+                        # ===== PATCH ONLY HERE =====
                         if kpi in problem_kpi:
                             df_sector[kpi] = clean_kpi(df_sector[kpi])
                             df_grouped = df_sector.groupby(["CELL_NAME", x_col])[kpi].mean().reset_index()
