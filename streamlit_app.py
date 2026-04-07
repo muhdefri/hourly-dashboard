@@ -95,8 +95,10 @@ def load_data(file):
     else:
         df = pd.read_csv(file, low_memory=False)
 
+    # clean missing values
     df.replace(["-", "NIL", "None", ""], pd.NA, inplace=True)
 
+    # ONLY convert KPI columns (safe)
     kpi_columns = [
         "Intra-Frequency Handover Out Success Rate",
         "inter_freq_HO",
@@ -218,16 +220,9 @@ if uploaded:
                                 continue
 
                             fig = px.line(df_g, x="DATE_ID", y=kpi, color="CELL_NAME")
-
                             th = get_sla_threshold(df_sec, kpi, target_df)
                             if pd.notna(th):
-                                fig.add_hline(
-                                    y=float(th),
-                                    line_dash="dash",
-                                    line_color="red",
-                                    annotation_text=f"{float(th):.2f}",
-                                    annotation_position="top left"
-                                )
+                                fig.add_hline(y=th, line_dash="dash", line_color="red")
 
                             st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
 
@@ -256,16 +251,9 @@ if uploaded:
                                     continue
 
                                 fig = px.line(df_g, x="DATE_ID", y=kpi, color="CELL_NAME")
-
                                 th = get_sla_threshold(df_sec, kpi, target_df)
                                 if pd.notna(th):
-                                    fig.add_hline(
-                                        y=float(th),
-                                        line_dash="dash",
-                                        line_color="red",
-                                        annotation_text=f"{float(th):.2f}",
-                                        annotation_position="top left"
-                                    )
+                                    fig.add_hline(y=th, line_dash="dash", line_color="red")
 
                                 st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
 
