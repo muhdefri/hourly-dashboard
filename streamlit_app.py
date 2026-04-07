@@ -91,7 +91,7 @@ def get_sla_threshold(df_scope, kpi, target_df):
 @st.cache_data
 def load_data(file):
 
-    # ===== FIX KPI TYPE =====
+    # ===== FIX DATA TYPE =====
     if file.name.endswith(".gz"):
         df = pd.read_csv(file, compression="gzip", low_memory=False)
     else:
@@ -115,6 +115,7 @@ def load_data(file):
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
+    # ================= NORMAL FLOW =================
     df["DATE_ID"] = pd.to_datetime(df["DATE_ID"])
 
     if "Hour_id" in df.columns:
@@ -210,8 +211,8 @@ if uploaded:
                 how="left"
             )
 
-        # ================= CHART ==================
-        if layout_mode in ["Sector Combine","Band Matrix"]:
+        # ================= CHART =================
+        elif layout_mode in ["Sector Combine","Band Matrix"]:
 
             sectors = ["SEC1","SEC2","SEC3"]
 
@@ -225,6 +226,7 @@ if uploaded:
                     cols = st.columns(len(sectors))
 
                     for i, sec in enumerate(sectors):
+
                         with cols[i]:
 
                             df_sector = df_filtered[df_filtered["SECTOR_GROUP"] == sec]
@@ -240,11 +242,10 @@ if uploaded:
                                 continue
 
                             fig = px.line(df_grouped, x=x_col, y=kpi, color="CELL_NAME", markers=True)
-
                             fig = apply_universal_legend(fig)
                             st.plotly_chart(fig, use_container_width=True)
 
-                else:  # BAND MATRIX FIX
+                else:  # ✅ BAND MATRIX FIX
 
                     bands = ["LTE900","LTE1800","LTE2100","LTE2300"]
 
@@ -255,6 +256,7 @@ if uploaded:
                         cols = st.columns(len(sectors))
 
                         for i, sec in enumerate(sectors):
+
                             with cols[i]:
 
                                 df_sector = df_filtered[df_filtered["SECTOR_GROUP"] == sec]
@@ -271,6 +273,5 @@ if uploaded:
                                     continue
 
                                 fig = px.line(df_grouped, x=x_col, y=kpi, color="CELL_NAME", markers=True)
-
                                 fig = apply_universal_legend(fig)
                                 st.plotly_chart(fig, use_container_width=True)
