@@ -220,8 +220,9 @@ if uploaded:
 
                             fig = px.line(df_g, x="DATE_ID", y=kpi, color="CELL_NAME")
 
-                            # ===== SMART DATE =====
+                            # ===== SMART DATE + LOCK RANGE =====
                             days = (df_g["DATE_ID"].max() - df_g["DATE_ID"].min()).days
+
                             if days <= 10:
                                 dtick_val = "D1"
                             elif days <= 30:
@@ -234,7 +235,8 @@ if uploaded:
                             fig.update_xaxes(
                                 dtick=dtick_val,
                                 tickformat="%d-%b",
-                                tickangle=-45
+                                tickangle=-45,
+                                range=[df_g["DATE_ID"].min(), df_g["DATE_ID"].max()]
                             )
 
                             th = get_sla_threshold(df_sec, kpi, target_df)
@@ -275,8 +277,9 @@ if uploaded:
 
                                 fig = px.line(df_g, x="DATE_ID", y=kpi, color="CELL_NAME")
 
-                                # ===== SMART DATE =====
+                                # ===== SMART DATE + LOCK RANGE =====
                                 days = (df_g["DATE_ID"].max() - df_g["DATE_ID"].min()).days
+
                                 if days <= 10:
                                     dtick_val = "D1"
                                 elif days <= 30:
@@ -289,7 +292,8 @@ if uploaded:
                                 fig.update_xaxes(
                                     dtick=dtick_val,
                                     tickformat="%d-%b",
-                                    tickangle=-45
+                                    tickangle=-45,
+                                    range=[df_g["DATE_ID"].min(), df_g["DATE_ID"].max()]
                                 )
 
                                 th = get_sla_threshold(df_sec, kpi, target_df)
