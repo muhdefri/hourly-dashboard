@@ -197,14 +197,30 @@ if uploaded:
                 kab_df, left_on="SITE_ID", right_on="SiteID", how="left"
             )
 
-        # ================= SUMMARY ONLY FIXED =================
+        # ================= SUMMARY =================
         if layout_mode == "Summary":
 
             show_only_nok = st.checkbox("Show Only NOK KPI", value=False)
 
+            # FILTER BAND
+            band_options = ["ALL"] + sorted(df_filtered["Band"].dropna().unique())
+            selected_band = st.sidebar.selectbox("Filter Band", band_options)
+
+            if selected_band != "ALL":
+                df_scope = df_filtered[df_filtered["Band"] == selected_band]
+            else:
+                df_scope = df_filtered.copy()
+
+            # FILTER CELL
+            cell_options = ["ALL"] + sorted(df_scope["CELL_NAME"].dropna().unique())
+            selected_cells = st.sidebar.multiselect("Filter Cell", cell_options, default=["ALL"])
+
+            if "ALL" not in selected_cells:
+                df_scope = df_scope[df_scope["CELL_NAME"].isin(selected_cells)]
+
             st.markdown("## Site Level Performance")
 
-            unique_days = sorted(df_filtered["DATE_ID"].dt.date.unique())
+            unique_days = sorted(df_scope["DATE_ID"].dt.date.unique())
 
             html = "<table style='border-collapse:collapse; width:100%;'>"
 
@@ -229,17 +245,17 @@ if uploaded:
 
             for kpi in summary_kpi:
 
-                if kpi not in df_filtered.columns:
+                if kpi not in df_scope.columns:
                     continue
 
                 daily_values = []
 
                 for d in unique_days:
-                    val = df_filtered[df_filtered["DATE_ID"].dt.date == d][kpi].mean()
+                    val = df_scope[df_scope["DATE_ID"].dt.date == d][kpi].mean()
                     daily_values.append(val)
 
                 avg_val = pd.Series(daily_values).mean()
-                target = get_sla_threshold(df_filtered, kpi, target_df)
+                target = get_sla_threshold(df_scope, kpi, target_df)
 
                 is_nok = False
                 if target is not None and pd.notna(avg_val):
