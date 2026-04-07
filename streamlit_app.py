@@ -91,10 +91,32 @@ def get_sla_threshold(df_scope, kpi, target_df):
 @st.cache_data
 def load_data(file):
 
+    # ===== FIX START =====
     if file.name.endswith(".gz"):
-        df = pd.read_csv(file, compression="gzip")
+        df = pd.read_csv(file, compression="gzip", low_memory=False)
     else:
-        df = pd.read_csv(file)
+        df = pd.read_csv(file, low_memory=False)
+
+    # cleaning data kotor
+    df.replace(["-", "NIL", "None", ""], pd.NA, inplace=True)
+
+    # force numeric untuk KPI yang bermasalah
+    kpi_columns = [
+        "Intra-Frequency Handover Out Success Rate",
+        "inter_freq_HO",
+        "UL_INT_PUSCH",
+        "Average_CQI_nonHOME",
+        "Total_Traffic_Volume_new",
+        "DL_Resource_Block_Utilizing_Rate_New",
+        "UL_Resource_Block_Utilizing_Rate_New",
+        "Downlink_Traffic_Volume_New",
+        "Uplink_Traffic_Volume_New"
+    ]
+
+    for col in kpi_columns:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+    # ===== FIX END =====
 
     df["DATE_ID"] = pd.to_datetime(df["DATE_ID"])
 
@@ -276,10 +298,7 @@ if uploaded:
             html += "</table>"
             st.markdown(html, unsafe_allow_html=True)
 
-
-        # ==================================================
         # ================= PAYLOAD STACK ==================
-        # ==================================================
         elif layout_mode == "Payload Stack":
 
             st.header("📦 Total Traffic Volume (GB)")
@@ -330,10 +349,7 @@ if uploaded:
             fig = apply_universal_legend(fig)
             st.plotly_chart(fig, use_container_width=True)
 
-
-        # ==================================================
-        # ================= CHART SECTION ==================
-        # ==================================================
+        # ================= CHART ==================
         elif layout_mode in ["Sector Combine","Band Matrix"]:
 
             sectors = ["SEC1","SEC2","SEC3"]
@@ -354,67 +370,27 @@ if uploaded:
                         if df_sector.empty:
                             continue
 
-                        if layout_mode == "Sector Combine":
+                        x_col = "DATE_ID" if time_resolution=="Daily" else "DATETIME_ID"
 
-                            x_col = "DATE_ID" if time_resolution=="Daily" else "DATETIME_ID"
+                        df_grouped = df_sector.groupby(["CELL_NAME",x_col]).mean(numeric_only=True).reset_index()
 
-                            df_grouped = df_sector.groupby(["CELL_NAME",x_col]).mean(numeric_only=True).reset_index()
+                        if kpi not in df_grouped.columns:
+                            continue
 
-                            if kpi not in df_grouped.columns:
-                                continue
+                        if kpi in traffic_kpi:
+                            fig = px.area(df_grouped, x=x_col, y=kpi, color="CELL_NAME")
+                        else:
+                            fig = px.line(df_grouped, x=x_col, y=kpi, color="CELL_NAME", markers=True)
 
-                            if kpi in traffic_kpi:
-                                fig = px.area(df_grouped, x=x_col, y=kpi, color="CELL_NAME")
-                            else:
-                                fig = px.line(df_grouped, x=x_col, y=kpi, color="CELL_NAME", markers=True)
+                        th = get_sla_threshold(df_sector, kpi, target_df)
 
-                            th = get_sla_threshold(df_sector, kpi, target_df)
+                        if pd.notna(th):
+                            fig.add_hline(
+                                y=float(th),
+                                line_color="red",
+                                line_dash="dash",
+                                annotation_text=f"{float(th):.2f}"
+                            )
 
-                            if pd.notna(th):
-                                fig.add_hline(
-                                    y=float(th),
-                                    line_color="red",
-                                    line_dash="dash",
-                                    annotation_text=f"{float(th):.2f}"
-                                )
-
-                            fig = apply_universal_legend(fig)
-                            st.plotly_chart(fig, use_container_width=True)
-
-                        else:  # Band Matrix
-
-                            bands = ["LTE900","LTE1800","LTE2100","LTE2300"]
-
-                            for band_val in bands:
-
-                                df_band = df_sector[df_sector["Band"] == band_val]
-
-                                if df_band.empty:
-                                    continue
-
-                                st.markdown(f"📡 {band_val}")
-
-                                x_col = "DATE_ID" if time_resolution=="Daily" else "DATETIME_ID"
-
-                                df_grouped = df_band.groupby(["CELL_NAME",x_col]).mean(numeric_only=True).reset_index()
-
-                                if kpi not in df_grouped.columns:
-                                    continue
-
-                                if kpi in traffic_kpi:
-                                    fig = px.area(df_grouped, x=x_col, y=kpi, color="CELL_NAME")
-                                else:
-                                    fig = px.line(df_grouped, x=x_col, y=kpi, color="CELL_NAME", markers=True)
-
-                                th = get_sla_threshold(df_band, kpi, target_df)
-
-                                if pd.notna(th):
-                                    fig.add_hline(
-                                        y=float(th),
-                                        line_color="red",
-                                        line_dash="dash",
-                                        annotation_text=f"{float(th):.2f}"
-                                    )
-
-                                fig = apply_universal_legend(fig)
-                                st.plotly_chart(fig, use_container_width=True)
+                        fig = apply_universal_legend(fig)
+                        st.plotly_chart(fig, use_container_width=True)
