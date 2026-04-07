@@ -128,12 +128,16 @@ def load_data(file):
     df.rename(columns={"EUTRANCELLFDD":"CELL_NAME"}, inplace=True)
     df["SECTOR_GROUP"] = df["CELL_NAME"].apply(map_sector)
 
+    band_order = ["LTE900","LTE1800","LTE2100","LTE2300"]
+
     df["Band"] = (
         df["Band"].astype(str)
         .str.upper()
         .str.replace(" ","", regex=False)
         .str.replace("-","", regex=False)
     )
+
+    df["Band"] = pd.Categorical(df["Band"], categories=band_order, ordered=True)
 
     return df
 
@@ -198,6 +202,17 @@ if uploaded:
 
         df_filtered = df[df["SITE_ID"].isin(selected_sites)]
 
+        if kab_df is not None:
+            df_filtered = df_filtered.merge(
+                kab_df,
+                left_on="SITE_ID",
+                right_on="SiteID",
+                how="left"
+            )
+
+        # ==================================================
+        # ================= CHART SECTION ==================
+        # ==================================================
         if layout_mode in ["Sector Combine","Band Matrix"]:
 
             sectors = ["SEC1","SEC2","SEC3"]
@@ -220,24 +235,18 @@ if uploaded:
 
                         x_col = "DATE_ID" if time_resolution=="Daily" else "DATETIME_ID"
 
-                        # ================= PATCH LOGIC =================
+                        # ===== PATCH KPI =====
                         if kpi in problem_kpi:
 
                             if kpi not in df_sector.columns:
-                                st.warning(f"{kpi} tidak ada di file")
                                 continue
 
                             df_sector[kpi] = clean_kpi(df_sector[kpi])
 
                             if df_sector[kpi].notna().sum() == 0:
-                                st.warning(f"{kpi} kosong (all NaN)")
                                 continue
 
-                            df_grouped = (
-                                df_sector.groupby(["CELL_NAME", x_col])[kpi]
-                                .mean()
-                                .reset_index()
-                            )
+                            df_grouped = df_sector.groupby(["CELL_NAME", x_col])[kpi].mean().reset_index()
 
                         else:
                             df_grouped = df_sector.groupby(["CELL_NAME",x_col]).mean(numeric_only=True).reset_index()
@@ -249,6 +258,17 @@ if uploaded:
                             fig = px.area(df_grouped, x=x_col, y=kpi, color="CELL_NAME")
                         else:
                             fig = px.line(df_grouped, x=x_col, y=kpi, color="CELL_NAME", markers=True)
+
+                        # ===== SLA LINE (AMAN) =====
+                        th = get_sla_threshold(df_sector, kpi, target_df)
+
+                        if pd.notna(th):
+                            fig.add_hline(
+                                y=float(th),
+                                line_color="red",
+                                line_dash="dash",
+                                annotation_text=f"{float(th):.2f}"
+                            )
 
                         fig = apply_universal_legend(fig)
                         st.plotly_chart(fig, use_container_width=True)
