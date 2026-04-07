@@ -197,14 +197,26 @@ if uploaded:
 
                         fig = px.line(df_g, x="DATE_ID", y=kpi, color="CELL_NAME")
 
+                        # ===== SMART DATE =====
                         days = (df_g["DATE_ID"].max() - df_g["DATE_ID"].min()).days
-                        dtick_val = "D1" if days <= 10 else "D7"
+
+                        if days <= 7:
+                            dtick_val = "D1"
+                        elif days <= 30:
+                            dtick_val = "D3"
+                        elif days <= 90:
+                            dtick_val = "D7"
+                        else:
+                            dtick_val = "M1"
 
                         fig.update_xaxes(
                             dtick=dtick_val,
                             tickformat="%d-%b",
                             tickangle=-45,
-                            range=[df_filtered["DATE_ID"].min(), df_filtered["DATE_ID"].max()]  # ✅ FIX
+                            range=[df_filtered["DATE_ID"].min(), df_filtered["DATE_ID"].max()]
                         )
+
+                        # ===== LEGEND BAWAH =====
+                        fig = apply_universal_legend(fig)
 
                         st.plotly_chart(fig, use_container_width=True)
