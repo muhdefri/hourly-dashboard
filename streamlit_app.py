@@ -96,7 +96,7 @@ def load_data(file):
     else:
         df = pd.read_csv(file, low_memory=False)
 
-    # 🔥 FIX KPI DATA TYPE (INI SATU-SATUNYA TAMBAHAN)
+    # 🔥 FIX KPI TYPE
     skip_cols = ["SITE_ID","CELL_NAME","Band","DATE_ID","Hour_id"]
 
     for col in df.columns:
@@ -177,6 +177,7 @@ if uploaded:
 
     kpi_list = summary_kpi + traffic_kpi
 
+    # ================= DATE FILTER =================
     if df["DATA_RESOLUTION"].iloc[0] == "Hourly":
         time_resolution = st.sidebar.radio("Time Resolution", ["Hourly","Daily"])
     else:
@@ -208,10 +209,48 @@ if uploaded:
                 how="left"
             )
 
-        # ==================================================
-        # ================= CHART SECTION ==================
-        # ==================================================
-        if layout_mode in ["Sector Combine","Band Matrix"]:
+        # ================= SUMMARY =================
+        if layout_mode == "Summary":
+
+            for kpi in summary_kpi:
+                if kpi not in df_filtered.columns:
+                    continue
+
+                df_temp = df_filtered.copy()
+                df_temp[kpi] = pd.to_numeric(df_temp[kpi], errors='coerce')
+                df_temp = df_temp.dropna(subset=[kpi])
+
+                if df_temp.empty:
+                    continue
+
+                df_plot = df_temp.groupby("DATE_ID")[kpi].mean().reset_index()
+
+                fig = px.line(df_plot, x="DATE_ID", y=kpi, markers=True)
+                fig = apply_universal_legend(fig)
+
+                st.plotly_chart(fig, use_container_width=True)
+
+        # ================= PAYLOAD =================
+        elif layout_mode == "Payload Stack":
+
+            df_temp = df_filtered.copy()
+            df_temp["Total_Traffic_Volume_new"] = pd.to_numeric(
+                df_temp["Total_Traffic_Volume_new"], errors='coerce'
+            )
+
+            df_plot = (
+                df_temp.groupby(["DATE_ID","SITE_ID"])["Total_Traffic_Volume_new"]
+                .sum()
+                .reset_index()
+            )
+
+            fig = px.area(df_plot, x="DATE_ID", y="Total_Traffic_Volume_new", color="SITE_ID")
+            fig = apply_universal_legend(fig)
+
+            st.plotly_chart(fig, use_container_width=True)
+
+        # ================= SECTOR COMBINE =================
+        elif layout_mode == "Sector Combine":
 
             sectors = ["SEC1","SEC2","SEC3"]
 
@@ -220,7 +259,7 @@ if uploaded:
                 st.markdown("---")
                 st.subheader(kpi)
 
-                cols = st.columns(len(sectors))
+                cols = st.columns(3)
 
                 for i, sec in enumerate(sectors):
 
@@ -247,15 +286,55 @@ if uploaded:
                         else:
                             fig = px.line(df_grouped, x=x_col, y=kpi, color="CELL_NAME", markers=True)
 
-                        th = get_sla_threshold(df_sector, kpi, target_df)
-
-                        if pd.notna(th):
-                            fig.add_hline(
-                                y=float(th),
-                                line_color="red",
-                                line_dash="dash",
-                                annotation_text=f"{float(th):.2f}"
-                            )
-
                         fig = apply_universal_legend(fig)
                         st.plotly_chart(fig, use_container_width=True)
+
+        # ================= BAND MATRIX =================
+        elif layout_mode == "Band Matrix":
+
+            sectors = ["SEC1","SEC2","SEC3"]
+            bands = ["LTE900","LTE1800","LTE2100","LTE2300"]
+
+            for kpi in kpi_list:
+
+                st.markdown("---")
+                st.subheader(kpi)
+
+                for sec in sectors:
+
+                    st.markdown(f"### 📡 {sec}")
+
+                    df_sector = df_filtered[df_filtered["SECTOR_GROUP"] == sec]
+
+                    if df_sector.empty:
+                        continue
+
+                    cols = st.columns(4)
+
+                    for i, band_val in enumerate(bands):
+
+                        with cols[i]:
+
+                            df_band = df_sector[df_sector["Band"] == band_val]
+
+                            if df_band.empty:
+                                continue
+
+                            x_col = "DATE_ID" if time_resolution=="Daily" else "DATETIME_ID"
+
+                            df_temp = df_band.copy()
+                            df_temp[kpi] = pd.to_numeric(df_temp[kpi], errors='coerce')
+                            df_temp = df_temp.dropna(subset=[kpi])
+
+                            if df_temp.empty:
+                                continue
+
+                            df_grouped = df_temp.groupby(["CELL_NAME",x_col])[kpi].mean().reset_index()
+
+                            if kpi in traffic_kpi:
+                                fig = px.area(df_grouped, x=x_col, y=kpi, color="CELL_NAME")
+                            else:
+                                fig = px.line(df_grouped, x=x_col, y=kpi, color="CELL_NAME", markers=True)
+
+                            fig = apply_universal_legend(fig)
+                            st.plotly_chart(fig, use_container_width=True)
