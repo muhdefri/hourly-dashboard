@@ -64,8 +64,8 @@ def get_sla_threshold(df_scope, kpi, target_df):
         band = str(df_scope["Band"].dropna().iloc[0]).lower().strip()
 
         df = target_df[
-            (target_df["kabupaten"].str.strip().str.lower() == kab) &
-            (target_df["band"].str.strip().str.lower() == band)
+            (target_df["kabupaten"].str.lower() == kab) &
+            (target_df["band"].str.lower() == band)
         ]
 
         col = [
@@ -92,20 +92,18 @@ def load_data(file):
         low_memory=False
     )
 
-    skip_cols = ["SITE_ID","CELL_NAME","Band","DATE_ID","Hour_id"]
-
+    # CLEAN KPI
     for col in df.columns:
-        if col in skip_cols:
-            continue
 
-        df[col] = (
-            df[col]
-            .astype(str)
-            .str.replace('%','', regex=False)
-            .str.replace(',','.', regex=False)
-        )
+        if df[col].dtype == "object":
+            df[col] = (
+                df[col]
+                .astype(str)
+                .str.replace('%','', regex=False)
+                .str.replace(',','.', regex=False)
+            )
 
-        df[col] = pd.to_numeric(df[col], errors='coerce')
+            df[col] = pd.to_numeric(df[col], errors='coerce')
 
     df["DATE_ID"] = pd.to_datetime(df["DATE_ID"])
 
@@ -142,30 +140,19 @@ if uploaded:
 
     df = load_data(uploaded)
 
-    # ================= KPI LIST FIX =================
-    summary_kpi = [
-        "RRC Setup Success Rate (Service)",
-        "ERAB_Setup_Success_Rate_All_New",
-        "Session_Setup_Success_Rate_New",
-        "Session_Abnormal_Release_New",
-        "Intra-Frequency Handover Out Success Rate",
-        "inter_freq_HO",
-        "Radio_Network_Availability_Rate",
-        "UL_INT_PUSCH",
-        "Average_CQI_nonHOME",
-        "SE_New"
+    # ================= AUTO KPI =================
+    exclude_cols = [
+        "SITE_ID","CELL_NAME","Band",
+        "DATE_ID","DATETIME_ID","Hour_id","SECTOR_GROUP"
     ]
 
-    traffic_kpi = [
-        "Total_Traffic_Volume_new",
-        "DL_Resource_Block_Utilizing_Rate_New",
-        "UL_Resource_Block_Utilizing_Rate_New",
-        "Downlink_Traffic_Volume_New",
-        "Uplink_Traffic_Volume_New",
-        "Active User DL"
+    kpi_list = [
+        col for col in df.columns
+        if col not in exclude_cols and pd.api.types.is_numeric_dtype(df[col])
     ]
 
-    kpi_list = summary_kpi + traffic_kpi
+    # DEBUG
+    st.sidebar.write("KPI Detected:", kpi_list)
 
     # ================= FILTER =================
     start_date = st.sidebar.date_input("Start Date", df["DATE_ID"].min().date())
@@ -199,9 +186,6 @@ if uploaded:
 
             for kpi in kpi_list:
 
-                if kpi not in df_filtered.columns:
-                    continue
-
                 st.markdown("---")
                 st.subheader(kpi)
 
@@ -214,14 +198,13 @@ if uploaded:
                         df_sec = df_filtered[df_filtered["SECTOR_GROUP"] == sec]
 
                         if df_sec.empty:
+                            st.write("No Data")
                             continue
 
-                        df_temp = df_sec.copy()
-                        df_temp[kpi] = pd.to_numeric(df_temp[kpi], errors='coerce')
-                        df_temp = df_temp.dropna(subset=[kpi])
+                        df_temp = df_sec.dropna(subset=[kpi])
 
                         if df_temp.empty:
-                            st.write("-")
+                            st.write("No Data")
                             continue
 
                         df_plot = df_temp.groupby(["CELL_NAME", x_col])[kpi].mean().reset_index()
@@ -242,15 +225,12 @@ if uploaded:
 
             for kpi in kpi_list:
 
-                if kpi not in df_filtered.columns:
-                    continue
-
                 st.markdown("---")
                 st.subheader(kpi)
 
-                header_cols = st.columns(3)
+                header = st.columns(3)
                 for i, sec in enumerate(sectors):
-                    header_cols[i].markdown(f"### {sec}")
+                    header[i].markdown(f"### {sec}")
 
                 for band in bands:
 
@@ -271,9 +251,7 @@ if uploaded:
                                 st.write("-")
                                 continue
 
-                            df_temp = df_sec.copy()
-                            df_temp[kpi] = pd.to_numeric(df_temp[kpi], errors='coerce')
-                            df_temp = df_temp.dropna(subset=[kpi])
+                            df_temp = df_sec.dropna(subset=[kpi])
 
                             if df_temp.empty:
                                 st.write("-")
@@ -304,10 +282,7 @@ if uploaded:
 
             html += "<th>AVG</th></tr>"
 
-            for kpi in summary_kpi:
-
-                if kpi not in df_filtered.columns:
-                    continue
+            for kpi in kpi_list:
 
                 html += f"<tr><td>{kpi}</td>"
 
