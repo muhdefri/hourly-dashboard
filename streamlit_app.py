@@ -133,8 +133,20 @@ if uploaded:
     ]
 
     kpi_list = [k for k in kpi_list if k in df.columns]
-    summary_kpi = kpi_list.copy()
 
+    # ================= EXCLUDE KPI FROM SUMMARY =================
+    exclude_kpi = [
+        "Total_Traffic_Volume_new",
+        "DL_Resource_Block_Utilizing_Rate_New",
+        "UL_Resource_Block_Utilizing_Rate_New",
+        "Downlink_Traffic_Volume_New",
+        "Uplink_Traffic_Volume_New",
+        "Active User DL"
+    ]
+
+    summary_kpi = [k for k in kpi_list if k not in exclude_kpi]
+
+    # ================= FILTER =================
     start_date = st.sidebar.date_input("Start Date", df["DATE_ID"].min().date())
     end_date = st.sidebar.date_input("End Date", df["DATE_ID"].max().date())
 
@@ -151,7 +163,7 @@ if uploaded:
             df_filtered = df_filtered.merge(kab_df, left_on="SITE_ID", right_on="SiteID", how="left")
 
         # ==================================================
-        # ================= SUMMARY (FIXED) =================
+        # ================= SUMMARY ========================
         # ==================================================
         if layout_mode == "Summary":
 
@@ -172,21 +184,6 @@ if uploaded:
             st.markdown("## Site Level Performance")
 
             unique_days = sorted(df_scope["DATE_ID"].dt.date.unique())
-
-            ratio_kpis = [
-                "RRC Setup Success Rate (Service)",
-                "ERAB_Setup_Success_Rate_All_New",
-                "Session_Setup_Success_Rate_New",
-                "Intra-Frequency Handover Out Success Rate",
-                "inter_freq_HO",
-                "Radio_Network_Availability_Rate"
-            ]
-
-            sum_kpis = [
-                "Total_Traffic_Volume_new",
-                "Downlink_Traffic_Volume_New",
-                "Uplink_Traffic_Volume_New"
-            ]
 
             html = "<table style='border-collapse:collapse; width:100%;'>"
 
@@ -215,24 +212,14 @@ if uploaded:
                 for d in unique_days:
 
                     df_day = df_scope[df_scope["DATE_ID"].dt.date == d]
-
-                    if kpi in sum_kpis:
-                        val = df_day[kpi].sum()
-                        if "Traffic" in kpi:
-                            val = val / 1024
-                    else:
-                        val = df_day[kpi].mean()
+                    val = df_day[kpi].mean()
 
                     daily_values.append(val)
 
                     val_show = round(val,2) if pd.notna(val) else ""
                     html += f"<td style='border:1px solid black; text-align:center;'>{val_show}</td>"
 
-                if kpi in sum_kpis:
-                    avg_val = sum(daily_values)
-                else:
-                    avg_val = pd.Series(daily_values).mean()
-
+                avg_val = pd.Series(daily_values).mean()
                 avg_show = round(avg_val,2) if pd.notna(avg_val) else ""
                 html += f"<td style='border:1px solid black; text-align:center;'>{avg_show}</td>"
 
