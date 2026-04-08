@@ -23,7 +23,7 @@ def apply_universal_legend(fig):
     return fig
 
 
-# ================= SMART SECTOR MAP =================
+# ================= SECTOR MAP =================
 def map_sector(cell_name):
     name = str(cell_name).upper()
 
@@ -42,11 +42,10 @@ def map_sector(cell_name):
         elif last_digit in [2,5,8]: return "SEC2"
         elif last_digit in [3,6,9]: return "SEC3"
 
-    hash_val = sum(ord(c) for c in name)
-    return f"SEC{(hash_val % 3) + 1}"
+    return "UNKNOWN"
 
 
-# ================= SLA =================
+# ================= SLA LOAD =================
 @st.cache_data
 def load_sla_master():
     path = Path("src/SLA_MASTER.xlsx")
@@ -56,14 +55,10 @@ def load_sla_master():
     kab_df = pd.read_excel(path, sheet_name="KABUPATEN")
     target_df = pd.read_excel(path, sheet_name="KPI Target", header=2)
     target_df.columns = target_df.columns.str.strip().str.lower()
-
-    # 🔥 FIX BAND MATCH (SLA)
-    if "band" in target_df.columns:
-        target_df["band"] = target_df["band"].astype(str).str.extract(r'(\d+)')
-
     return kab_df, target_df
 
 
+# ================= SLA LOOKUP =================
 def get_sla_threshold(df_scope, kpi, target_df):
     if target_df is None or df_scope.empty:
         return None
@@ -97,35 +92,11 @@ def get_sla_threshold(df_scope, kpi, target_df):
 def load_data(file):
 
     if file.name.endswith(".gz"):
-        df = pd.read_csv(file, compression="gzip", low_memory=False)
+        df = pd.read_csv(file, compression="gzip")
     else:
-        df = pd.read_csv(file, low_memory=False)
+        df = pd.read_csv(file)
 
-    df.replace(["-", "NIL", "None", ""], pd.NA, inplace=True)
-
-    kpi_columns = [
-        "Intra-Frequency Handover Out Success Rate",
-        "inter_freq_HO",
-        "UL_INT_PUSCH",
-        "Average_CQI_nonHOME",
-        "Total_Traffic_Volume_new",
-        "DL_Resource_Block_Utilizing_Rate_New",
-        "UL_Resource_Block_Utilizing_Rate_New",
-        "Downlink_Traffic_Volume_New",
-        "Uplink_Traffic_Volume_New"
-    ]
-
-    for col in kpi_columns:
-        if col in df.columns:
-            df[col] = (
-                df[col].astype(str)
-                .str.replace(",", "", regex=False)
-                .str.strip()
-            )
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-
-    # DATE
-    df["DATE_ID"] = pd.to_datetime(df["DATE_ID"], errors="coerce")
+    df["DATE_ID"] = pd.to_datetime(df["DATE_ID"])
 
     if "Hour_id" in df.columns:
         df["DATETIME_ID"] = df["DATE_ID"] + pd.to_timedelta(df["Hour_id"], unit="h")
@@ -137,7 +108,8 @@ def load_data(file):
     df.rename(columns={"EUTRANCELLFDD":"CELL_NAME"}, inplace=True)
     df["SECTOR_GROUP"] = df["CELL_NAME"].apply(map_sector)
 
-    # BAND (existing logic tetap)
+    band_order = ["LTE900","LTE1800","LTE2100","LTE2300"]
+
     df["Band"] = (
         df["Band"].astype(str)
         .str.upper()
@@ -145,8 +117,7 @@ def load_data(file):
         .str.replace("-","", regex=False)
     )
 
-    # 🔥 FIX BAND MATCH (DATA)
-    df["Band"] = df["Band"].str.extract(r'(\d+)')
+    df["Band"] = pd.Categorical(df["Band"], categories=band_order, ordered=True)
 
     return df
 
@@ -189,23 +160,24 @@ if uploaded:
 
     kpi_list = summary_kpi + traffic_kpi
 
-    # SAFE DATE
-    min_date = df["DATE_ID"].min()
-    max_date = df["DATE_ID"].max()
+    if df["DATA_RESOLUTION"].iloc[0] == "Hourly":
+        time_resolution = st.sidebar.radio("Time Resolution", ["Hourly","Daily"])
+    else:
+        time_resolution = "Daily"
+        st.sidebar.info("📅 Daily File Detected")
 
-    if pd.isna(min_date) or pd.isna(max_date):
-        st.error("❌ DATE_ID tidak terbaca. Cek format tanggal di CSV.")
-        st.stop()
-
-    start_date = st.sidebar.date_input("Start Date", min_date.date())
-    end_date = st.sidebar.date_input("End Date", max_date.date())
+    start_date = st.sidebar.date_input("Start Date", df["DATE_ID"].min().date())
+    end_date = st.sidebar.date_input("End Date", df["DATE_ID"].max().date())
 
     df = df[
         (df["DATE_ID"] >= pd.to_datetime(start_date)) &
         (df["DATE_ID"] <= pd.to_datetime(end_date))
     ]
 
-    selected_sites = st.multiselect("Select Site ID", sorted(df["SITE_ID"].unique()))
+    selected_sites = st.multiselect(
+        "Select Site ID",
+        sorted(df["SITE_ID"].unique())
+    )
 
     if selected_sites:
 
@@ -213,159 +185,76 @@ if uploaded:
 
         if kab_df is not None:
             df_filtered = df_filtered.merge(
-                kab_df, left_on="SITE_ID", right_on="SiteID", how="left"
+                kab_df,
+                left_on="SITE_ID",
+                right_on="SiteID",
+                how="left"
             )
 
-        # ================= CHART =================
-        if layout_mode in ["Sector Combine","Band Matrix"]:
+        # ==================================================
+        # ================= SUMMARY ========================
+        # ==================================================
+        if layout_mode == "Summary":
 
-            sectors = ["SEC1","SEC2","SEC3"]
+            band_options = ["ALL"] + sorted(df_filtered["Band"].dropna().unique())
+            selected_band = st.sidebar.selectbox("Filter Band", band_options)
 
-            for kpi in kpi_list:
+            if selected_band != "ALL":
+                df_scope = df_filtered[df_filtered["Band"] == selected_band]
+            else:
+                df_scope = df_filtered.copy()
 
-                st.markdown("---")
-                st.subheader(kpi)
+            cell_options = ["ALL"] + sorted(df_scope["CELL_NAME"].dropna().unique())
+            selected_cells = st.sidebar.multiselect(
+                "Filter Cell",
+                cell_options,
+                default=["ALL"]
+            )
 
-                if layout_mode == "Sector Combine":
-
-                    cols = st.columns(3)
-
-                    for i, sec in enumerate(sectors):
-                        with cols[i]:
-
-                            df_sec = df_filtered[df_filtered["SECTOR_GROUP"] == sec]
-                            if df_sec.empty:
-                                continue
-
-                            df_g = df_sec.groupby(["CELL_NAME","DATE_ID"]).mean(numeric_only=True).reset_index()
-                            if kpi not in df_g.columns:
-                                continue
-
-                            fig = px.line(df_g, x="DATE_ID", y=kpi, color="CELL_NAME")
-
-                            th = get_sla_threshold(df_sec, kpi, target_df)
-                            if pd.notna(th):
-                                fig.add_hline(
-                                    y=float(th),
-                                    line_dash="dash",
-                                    line_color="red",
-                                    annotation_text=f"{float(th):.2f}",
-                                    annotation_position="top left"
-                                )
-
-                            st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
-
-                else:
-
-                    bands = sorted(df_filtered["Band"].dropna().unique())
-
-                    for band in bands:
-
-                        st.markdown(f"### 📡 {band}")
-                        cols = st.columns(3)
-
-                        for i, sec in enumerate(sectors):
-                            with cols[i]:
-
-                                df_sec = df_filtered[
-                                    (df_filtered["Band"] == band) &
-                                    (df_filtered["SECTOR_GROUP"] == sec)
-                                ]
-
-                                if df_sec.empty:
-                                    continue
-
-                                df_g = df_sec.groupby(["CELL_NAME","DATE_ID"]).mean(numeric_only=True).reset_index()
-                                if kpi not in df_g.columns:
-                                    continue
-
-                                fig = px.line(df_g, x="DATE_ID", y=kpi, color="CELL_NAME")
-
-                                th = get_sla_threshold(df_sec, kpi, target_df)
-                                if pd.notna(th):
-                                    fig.add_hline(
-                                        y=float(th),
-                                        line_dash="dash",
-                                        line_color="red",
-                                        annotation_text=f"{float(th):.2f}",
-                                        annotation_position="top left"
-                                    )
-
-                                st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
-
-        # ================= SUMMARY =================
-        elif layout_mode == "Summary":
-
-            show_only_nok = st.checkbox("Show Only NOK KPI", value=False)
-
-            if df_filtered.empty:
-                st.warning("⚠️ No data after filtering")
-                st.stop()
-
-            unique_days = sorted(df_filtered["DATE_ID"].dt.date.unique())
-
-            if len(unique_days) == 0:
-                st.warning("⚠️ No data in selected date range")
-                st.stop()
+            if "ALL" not in selected_cells:
+                df_scope = df_scope[df_scope["CELL_NAME"].isin(selected_cells)]
 
             st.markdown("## Site Level Performance")
+
+            unique_days = sorted(df_scope["DATE_ID"].dt.date.unique())
 
             html = "<table style='border-collapse:collapse; width:100%;'>"
 
             html += "<tr style='background:#a5d6a7;'>"
-            html += "<th rowspan='2'>KPI</th>"
-
+            html += "<th rowspan='2' style='border:1px solid black;'>KPI</th>"
             for i in range(len(unique_days)):
-                html += f"<th>DAY {i+1}</th>"
-
-            html += "<th rowspan='2'>Average</th>"
-            html += "<th rowspan='2'>Target KPI</th>"
-            html += "<th rowspan='2'>Passed</th>"
-            html += "<th rowspan='2'>Delta</th>"
+                html += f"<th style='border:1px solid black;'>DAY {i+1}</th>"
+            html += "<th rowspan='2' style='border:1px solid black;'>Average</th>"
+            html += "<th rowspan='2' style='border:1px solid black;'>Target KPI</th>"
+            html += "<th rowspan='2' style='border:1px solid black;'>Passed</th>"
+            html += "<th rowspan='2' style='border:1px solid black;'>Delta</th>"
             html += "</tr>"
 
             html += "<tr style='background:#c8e6c9;'>"
             for d in unique_days:
-                html += f"<th>{pd.to_datetime(d).strftime('%d-%b-%y')}</th>"
+                html += f"<th style='border:1px solid black;'>{pd.to_datetime(d).strftime('%d-%b-%y')}</th>"
             html += "</tr>"
-
-            nok_found = False
 
             for kpi in summary_kpi:
 
-                if kpi not in df_filtered.columns:
-                    continue
+                html += "<tr>"
+                html += f"<td style='border:1px solid black;'><b>{kpi}</b></td>"
 
                 daily_values = []
 
                 for d in unique_days:
-                    val = df_filtered[df_filtered["DATE_ID"].dt.date == d][kpi].mean()
+                    val = df_scope[df_scope["DATE_ID"].dt.date == d][kpi].mean()
                     daily_values.append(val)
+                    val_show = round(val,2) if pd.notna(val) else ""
+                    html += f"<td style='border:1px solid black; text-align:center;'>{val_show}</td>"
 
                 avg_val = pd.Series(daily_values).mean()
-                target = get_sla_threshold(df_filtered, kpi, target_df)
+                avg_show = round(avg_val,2) if pd.notna(avg_val) else ""
+                html += f"<td style='border:1px solid black; text-align:center;'>{avg_show}</td>"
 
-                is_nok = False
-                if target is not None and pd.notna(avg_val):
-                    if "Abnormal" in kpi:
-                        is_nok = avg_val > target
-                    else:
-                        is_nok = avg_val < target
-
-                if is_nok:
-                    nok_found = True
-
-                if show_only_nok and not is_nok:
-                    continue
-
-                html += "<tr>"
-                html += f"<td><b>{kpi}</b></td>"
-
-                for val in daily_values:
-                    html += f"<td>{round(val,2) if pd.notna(val) else ''}</td>"
-
-                html += f"<td>{round(avg_val,2) if pd.notna(avg_val) else ''}</td>"
-                html += f"<td>{round(target,2) if target is not None else ''}</td>"
+                target = get_sla_threshold(df_scope, kpi, target_df)
+                target_show = round(target,2) if target is not None else ""
+                html += f"<td style='border:1px solid black; text-align:center;'>{target_show}</td>"
 
                 if target is not None and pd.notna(avg_val):
                     if "Abnormal" in kpi:
@@ -376,39 +265,156 @@ if uploaded:
                         delta = avg_val - target
 
                     color = "#b7e1cd" if passed=="Y" else "#f4c7c3"
-
-                    html += f"<td style='background:{color}; text-align:center'><b>{passed}</b></td>"
-                    html += f"<td>{round(delta,2)}</td>"
+                    html += f"<td style='border:1px solid black; background:{color}; text-align:center;'><b>{passed}</b></td>"
+                    html += f"<td style='border:1px solid black; text-align:center;'>{round(delta,2)}</td>"
                 else:
-                    html += "<td></td><td></td>"
+                    html += "<td style='border:1px solid black;'></td>"
+                    html += "<td style='border:1px solid black;'></td>"
 
                 html += "</tr>"
 
             html += "</table>"
-
-            if show_only_nok and not nok_found:
-                st.success("✅ All KPI Passed SLA")
-
             st.markdown(html, unsafe_allow_html=True)
 
-        # ================= PAYLOAD =================
+
+        # ==================================================
+        # ================= PAYLOAD STACK ==================
+        # ==================================================
         elif layout_mode == "Payload Stack":
 
             st.header("📦 Total Traffic Volume (GB)")
 
+            x_col = "DATE_ID" if time_resolution=="Daily" else "DATETIME_ID"
+
             df_grouped = (
-                df_filtered.groupby(["DATE_ID","SITE_ID"])["Total_Traffic_Volume_new"]
+                df_filtered.groupby([x_col,"SITE_ID"])["Total_Traffic_Volume_new"]
                 .sum()
                 .reset_index()
             )
 
             df_grouped["Total_Traffic_Volume_new"] /= 1024
 
+            min_date = df_grouped[x_col].min().date()
+            max_date = df_grouped[x_col].max().date()
+
+            before_range = st.date_input("Before Period", (min_date, min_date))
+            after_range = st.date_input("After Period", (max_date, max_date))
+
+            before_total = df_grouped[
+                (df_grouped[x_col].dt.date >= before_range[0]) &
+                (df_grouped[x_col].dt.date <= before_range[1])
+            ]["Total_Traffic_Volume_new"].sum()
+
+            after_total = df_grouped[
+                (df_grouped[x_col].dt.date >= after_range[0]) &
+                (df_grouped[x_col].dt.date <= after_range[1])
+            ]["Total_Traffic_Volume_new"].sum()
+
+            delta = after_total - before_total
+            growth = (delta / before_total * 100) if before_total != 0 else 0
+
+            col1,col2,col3,col4 = st.columns(4)
+            col1.metric("Before (GB)", f"{before_total:,.2f}")
+            col2.metric("After (GB)", f"{after_total:,.2f}")
+            col3.metric("Delta (GB)", f"{delta:,.2f}")
+            col4.metric("Growth %", f"{growth:.2f}%")
+
             fig = px.area(
                 df_grouped,
-                x="DATE_ID",
+                x=x_col,
                 y="Total_Traffic_Volume_new",
-                color="SITE_ID"
+                color="SITE_ID",
+                labels={"Total_Traffic_Volume_new":"Total Traffic (GB)"}
             )
 
-            st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
+            fig = apply_universal_legend(fig)
+            st.plotly_chart(fig, use_container_width=True)
+
+
+        # ==================================================
+        # ================= CHART SECTION ==================
+        # ==================================================
+        elif layout_mode in ["Sector Combine","Band Matrix"]:
+
+            sectors = ["SEC1","SEC2","SEC3"]
+
+            for kpi in kpi_list:
+
+                st.markdown("---")
+                st.subheader(kpi)
+
+                cols = st.columns(len(sectors))
+
+                for i, sec in enumerate(sectors):
+
+                    with cols[i]:
+
+                        df_sector = df_filtered[df_filtered["SECTOR_GROUP"] == sec]
+
+                        if df_sector.empty:
+                            continue
+
+                        if layout_mode == "Sector Combine":
+
+                            x_col = "DATE_ID" if time_resolution=="Daily" else "DATETIME_ID"
+
+                            df_grouped = df_sector.groupby(["CELL_NAME",x_col]).mean(numeric_only=True).reset_index()
+
+                            if kpi not in df_grouped.columns:
+                                continue
+
+                            if kpi in traffic_kpi:
+                                fig = px.area(df_grouped, x=x_col, y=kpi, color="CELL_NAME")
+                            else:
+                                fig = px.line(df_grouped, x=x_col, y=kpi, color="CELL_NAME", markers=True)
+
+                            th = get_sla_threshold(df_sector, kpi, target_df)
+
+                            if pd.notna(th):
+                                fig.add_hline(
+                                    y=float(th),
+                                    line_color="red",
+                                    line_dash="dash",
+                                    annotation_text=f"{float(th):.2f}"
+                                )
+
+                            fig = apply_universal_legend(fig)
+                            st.plotly_chart(fig, use_container_width=True)
+
+                        else:  # Band Matrix
+
+                            bands = ["LTE900","LTE1800","LTE2100","LTE2300"]
+
+                            for band_val in bands:
+
+                                df_band = df_sector[df_sector["Band"] == band_val]
+
+                                if df_band.empty:
+                                    continue
+
+                                st.markdown(f"📡 {band_val}")
+
+                                x_col = "DATE_ID" if time_resolution=="Daily" else "DATETIME_ID"
+
+                                df_grouped = df_band.groupby(["CELL_NAME",x_col]).mean(numeric_only=True).reset_index()
+
+                                if kpi not in df_grouped.columns:
+                                    continue
+
+                                if kpi in traffic_kpi:
+                                    fig = px.area(df_grouped, x=x_col, y=kpi, color="CELL_NAME")
+                                else:
+                                    fig = px.line(df_grouped, x=x_col, y=kpi, color="CELL_NAME", markers=True)
+
+                                th = get_sla_threshold(df_band, kpi, target_df)
+
+                                if pd.notna(th):
+                                    fig.add_hline(
+                                        y=float(th),
+                                        line_color="red",
+                                        line_dash="dash",
+                                        annotation_text=f"{float(th):.2f}"
+                                    )
+
+                                fig = apply_universal_legend(fig)
+                                st.plotly_chart(fig, use_container_width=True)
