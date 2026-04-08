@@ -110,6 +110,7 @@ def load_data(file):
         "Uplink_Traffic_Volume_New"
     ]
 
+    # FIX NUMERIC
     for col in kpi_columns:
         if col in df.columns:
             df[col] = (
@@ -119,6 +120,7 @@ def load_data(file):
             )
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
+    # FIX DATE
     df["DATE_ID"] = pd.to_datetime(
         df["DATE_ID"],
         format="%m/%d/%Y",
@@ -202,13 +204,90 @@ if uploaded:
                 kab_df, left_on="SITE_ID", right_on="SiteID", how="left"
             )
 
+        # ================= CHART =================
+        if layout_mode in ["Sector Combine","Band Matrix"]:
+
+            sectors = ["SEC1","SEC2","SEC3"]
+
+            for kpi in kpi_list:
+
+                st.markdown("---")
+                st.subheader(kpi)
+
+                if layout_mode == "Sector Combine":
+
+                    cols = st.columns(3)
+
+                    for i, sec in enumerate(sectors):
+                        with cols[i]:
+
+                            df_sec = df_filtered[df_filtered["SECTOR_GROUP"] == sec]
+                            if df_sec.empty:
+                                continue
+
+                            df_g = df_sec.groupby(["CELL_NAME","DATE_ID"]).mean(numeric_only=True).reset_index()
+                            if kpi not in df_g.columns:
+                                continue
+
+                            fig = px.line(df_g, x="DATE_ID", y=kpi, color="CELL_NAME")
+
+                            th = get_sla_threshold(df_sec, kpi, target_df)
+                            if pd.notna(th):
+                                fig.add_hline(
+                                    y=float(th),
+                                    line_dash="dash",
+                                    line_color="red",
+                                    annotation_text=f"{float(th):.2f}",
+                                    annotation_position="top left"
+                                )
+
+                            st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
+
+                else:
+
+                    bands = sorted(df_filtered["Band"].dropna().unique())
+
+                    for band in bands:
+
+                        st.markdown(f"### 📡 {band}")
+                        cols = st.columns(3)
+
+                        for i, sec in enumerate(sectors):
+                            with cols[i]:
+
+                                df_sec = df_filtered[
+                                    (df_filtered["Band"] == band) &
+                                    (df_filtered["SECTOR_GROUP"] == sec)
+                                ]
+
+                                if df_sec.empty:
+                                    continue
+
+                                df_g = df_sec.groupby(["CELL_NAME","DATE_ID"]).mean(numeric_only=True).reset_index()
+                                if kpi not in df_g.columns:
+                                    continue
+
+                                fig = px.line(df_g, x="DATE_ID", y=kpi, color="CELL_NAME")
+
+                                th = get_sla_threshold(df_sec, kpi, target_df)
+                                if pd.notna(th):
+                                    fig.add_hline(
+                                        y=float(th),
+                                        line_dash="dash",
+                                        line_color="red",
+                                        annotation_text=f"{float(th):.2f}",
+                                        annotation_position="top left"
+                                    )
+
+                                st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
+
         # ================= SUMMARY =================
-        if layout_mode == "Summary":
+        elif layout_mode == "Summary":
 
             show_only_nok = st.checkbox("Show Only NOK KPI", value=False)
 
             if df_filtered.empty:
-                st.warning("⚠️ No data after filtering (date/site)")
+                st.warning("⚠️ No data after filtering")
                 st.stop()
 
             unique_days = sorted(df_filtered["DATE_ID"].dt.date.unique())
@@ -299,3 +378,25 @@ if uploaded:
                 st.success("✅ All KPI Passed SLA")
 
             st.markdown(html, unsafe_allow_html=True)
+
+        # ================= PAYLOAD =================
+        elif layout_mode == "Payload Stack":
+
+            st.header("📦 Total Traffic Volume (GB)")
+
+            df_grouped = (
+                df_filtered.groupby(["DATE_ID","SITE_ID"])["Total_Traffic_Volume_new"]
+                .sum()
+                .reset_index()
+            )
+
+            df_grouped["Total_Traffic_Volume_new"] /= 1024
+
+            fig = px.area(
+                df_grouped,
+                x="DATE_ID",
+                y="Total_Traffic_Volume_new",
+                color="SITE_ID"
+            )
+
+            st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
