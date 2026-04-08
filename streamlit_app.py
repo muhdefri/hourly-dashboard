@@ -85,6 +85,35 @@ def load_data(file):
 
     df.replace(["-", "NIL", "None", ""], pd.NA, inplace=True)
 
+    # 🔥 FIX UTAMA (numeric conversion)
+    kpi_columns = [
+        "RRC Setup Success Rate (Service)",
+        "ERAB_Setup_Success_Rate_All_New",
+        "Session_Setup_Success_Rate_New",
+        "Session_Abnormal_Release_New",
+        "Intra-Frequency Handover Out Success Rate",
+        "inter_freq_HO",
+        "Radio_Network_Availability_Rate",
+        "UL_INT_PUSCH",
+        "Average_CQI_nonHOME",
+        "SE_New",
+        "Total_Traffic_Volume_new",
+        "DL_Resource_Block_Utilizing_Rate_New",
+        "UL_Resource_Block_Utilizing_Rate_New",
+        "Downlink_Traffic_Volume_New",
+        "Uplink_Traffic_Volume_New",
+        "Active User DL"
+    ]
+
+    for col in kpi_columns:
+        if col in df.columns:
+            df[col] = (
+                df[col].astype(str)
+                .str.replace(",", "", regex=False)
+                .str.strip()
+            )
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
     df["DATE_ID"] = pd.to_datetime(df["DATE_ID"], errors="coerce")
 
     df.rename(columns={"EUTRANCELLFDD":"CELL_NAME"}, inplace=True)
@@ -116,7 +145,7 @@ if uploaded:
 
     df = load_data(uploaded)
 
-    # ================= KPI LIST =================
+    # KPI LIST
     summary_kpi = [
         "RRC Setup Success Rate (Service)",
         "ERAB_Setup_Success_Rate_All_New",
@@ -141,12 +170,9 @@ if uploaded:
 
     kpi_list = summary_kpi + traffic_kpi
 
-    # ================= FILTER =================
-    min_date = df["DATE_ID"].min()
-    max_date = df["DATE_ID"].max()
-
-    start = st.sidebar.date_input("Start", min_date.date())
-    end = st.sidebar.date_input("End", max_date.date())
+    # FILTER
+    start = st.sidebar.date_input("Start", df["DATE_ID"].min().date())
+    end = st.sidebar.date_input("End", df["DATE_ID"].max().date())
 
     df = df[(df["DATE_ID"] >= pd.to_datetime(start)) &
             (df["DATE_ID"] <= pd.to_datetime(end))]
@@ -192,11 +218,7 @@ if uploaded:
                             if th:
                                 fig.add_hline(y=float(th), line_dash="dash", line_color="red")
 
-                            st.plotly_chart(
-                                apply_universal_legend(fig),
-                                use_container_width=True,
-                                key=f"{kpi}_{sec}"
-                            )
+                            st.plotly_chart(fig, use_container_width=True, key=f"{kpi}_{sec}")
 
                 else:
 
@@ -223,11 +245,7 @@ if uploaded:
                                 if th:
                                     fig.add_hline(y=float(th), line_dash="dash", line_color="red")
 
-                                st.plotly_chart(
-                                    apply_universal_legend(fig),
-                                    use_container_width=True,
-                                    key=f"{kpi}_{band}_{sec}"
-                                )
+                                st.plotly_chart(fig, use_container_width=True, key=f"{kpi}_{band}_{sec}")
 
         # ================= SUMMARY =================
         elif layout_mode == "Summary":
@@ -270,8 +288,4 @@ if uploaded:
                 color="SITE_ID"
             )
 
-            st.plotly_chart(
-                apply_universal_legend(fig),
-                use_container_width=True,
-                key="payload_chart"
-            )
+            st.plotly_chart(fig, use_container_width=True, key="payload_chart")
