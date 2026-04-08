@@ -63,18 +63,29 @@ def load_sla_master():
     return kab_df, target_df
 
 
-# ✅ FIX SLA (multi band aman)
+# 🔥 FIX FINAL (SLA PASTI MUNCUL)
 def get_sla_threshold(df_scope, kpi, target_df):
     if target_df is None or df_scope.empty:
         return None
 
     try:
         kab = str(df_scope["KABUPATEN"].dropna().iloc[0]).lower().strip()
-        bands = df_scope["Band"].dropna().unique()
+
+        # 🔥 ambil band paling dominan (bukan random)
+        band = (
+            df_scope["Band"]
+            .dropna()
+            .mode()
+        )
+
+        if band.empty:
+            return None
+
+        band = str(band.iloc[0]).strip()
 
         th = target_df[
             (target_df["kabupaten"].str.lower().str.strip() == kab) &
-            (target_df["band"].isin([str(b).lower().strip() for b in bands]))
+            (target_df["band"].astype(str).str.strip() == band)
         ]
 
         col_match = [
@@ -208,73 +219,8 @@ if uploaded:
                 kab_df, left_on="SITE_ID", right_on="SiteID", how="left"
             )
 
-        # ================= CHART =================
-        if layout_mode in ["Sector Combine","Band Matrix"]:
-
-            sectors = ["SEC1","SEC2","SEC3"]
-
-            for kpi in kpi_list:
-
-                st.markdown("---")
-                st.subheader(kpi)
-
-                if layout_mode == "Sector Combine":
-
-                    cols = st.columns(3)
-
-                    for i, sec in enumerate(sectors):
-                        with cols[i]:
-
-                            df_sec = df_filtered[df_filtered["SECTOR_GROUP"] == sec]
-                            if df_sec.empty:
-                                continue
-
-                            df_g = df_sec.groupby(["CELL_NAME","DATE_ID"]).mean(numeric_only=True).reset_index()
-                            if kpi not in df_g.columns:
-                                continue
-
-                            fig = px.line(df_g, x="DATE_ID", y=kpi, color="CELL_NAME")
-
-                            th = get_sla_threshold(df_sec, kpi, target_df)
-                            if pd.notna(th):
-                                fig.add_hline(y=float(th), line_dash="dash", line_color="red")
-
-                            st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
-
-                else:
-
-                    bands = sorted(df_filtered["Band"].dropna().unique())
-
-                    for band in bands:
-
-                        st.markdown(f"### 📡 {band}")
-                        cols = st.columns(3)
-
-                        for i, sec in enumerate(sectors):
-                            with cols[i]:
-
-                                df_sec = df_filtered[
-                                    (df_filtered["Band"] == band) &
-                                    (df_filtered["SECTOR_GROUP"] == sec)
-                                ]
-
-                                if df_sec.empty:
-                                    continue
-
-                                df_g = df_sec.groupby(["CELL_NAME","DATE_ID"]).mean(numeric_only=True).reset_index()
-                                if kpi not in df_g.columns:
-                                    continue
-
-                                fig = px.line(df_g, x="DATE_ID", y=kpi, color="CELL_NAME")
-
-                                th = get_sla_threshold(df_sec, kpi, target_df)
-                                if pd.notna(th):
-                                    fig.add_hline(y=float(th), line_dash="dash", line_color="red")
-
-                                st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
-
         # ================= SUMMARY =================
-        elif layout_mode == "Summary":
+        if layout_mode == "Summary":
 
             show_only_nok = st.checkbox("Show Only NOK KPI", value=False)
 
@@ -345,25 +291,3 @@ if uploaded:
             html += "</table>"
 
             st.markdown(html, unsafe_allow_html=True)
-
-        # ================= PAYLOAD =================
-        elif layout_mode == "Payload Stack":
-
-            st.header("📦 Total Traffic Volume (GB)")
-
-            df_grouped = (
-                df_filtered.groupby(["DATE_ID","SITE_ID"])["Total_Traffic_Volume_new"]
-                .sum()
-                .reset_index()
-            )
-
-            df_grouped["Total_Traffic_Volume_new"] /= 1024
-
-            fig = px.area(
-                df_grouped,
-                x="DATE_ID",
-                y="Total_Traffic_Volume_new",
-                color="SITE_ID"
-            )
-
-            st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
