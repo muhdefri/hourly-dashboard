@@ -56,6 +56,11 @@ def load_sla_master():
     kab_df = pd.read_excel(path, sheet_name="KABUPATEN")
     target_df = pd.read_excel(path, sheet_name="KPI Target", header=2)
     target_df.columns = target_df.columns.str.strip().str.lower()
+
+    # 🔥 FIX BAND MATCH (SLA)
+    if "band" in target_df.columns:
+        target_df["band"] = target_df["band"].astype(str).str.extract(r'(\d+)')
+
     return kab_df, target_df
 
 
@@ -110,7 +115,6 @@ def load_data(file):
         "Uplink_Traffic_Volume_New"
     ]
 
-    # FIX NUMERIC KPI (tetap seperti sebelumnya)
     for col in kpi_columns:
         if col in df.columns:
             df[col] = (
@@ -120,11 +124,8 @@ def load_data(file):
             )
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    # 🔥 FIX DATE (AUTO DETECT FORMAT)
-    df["DATE_ID"] = pd.to_datetime(
-        df["DATE_ID"],
-        errors="coerce"
-    )
+    # DATE
+    df["DATE_ID"] = pd.to_datetime(df["DATE_ID"], errors="coerce")
 
     if "Hour_id" in df.columns:
         df["DATETIME_ID"] = df["DATE_ID"] + pd.to_timedelta(df["Hour_id"], unit="h")
@@ -136,12 +137,16 @@ def load_data(file):
     df.rename(columns={"EUTRANCELLFDD":"CELL_NAME"}, inplace=True)
     df["SECTOR_GROUP"] = df["CELL_NAME"].apply(map_sector)
 
+    # BAND (existing logic tetap)
     df["Band"] = (
         df["Band"].astype(str)
         .str.upper()
         .str.replace(" ","", regex=False)
         .str.replace("-","", regex=False)
     )
+
+    # 🔥 FIX BAND MATCH (DATA)
+    df["Band"] = df["Band"].str.extract(r'(\d+)')
 
     return df
 
@@ -184,7 +189,7 @@ if uploaded:
 
     kpi_list = summary_kpi + traffic_kpi
 
-    # 🔥 SAFE DATE HANDLING (FIX ERROR)
+    # SAFE DATE
     min_date = df["DATE_ID"].min()
     max_date = df["DATE_ID"].max()
 
