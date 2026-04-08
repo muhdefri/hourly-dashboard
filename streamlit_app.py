@@ -110,7 +110,7 @@ def load_data(file):
         "Uplink_Traffic_Volume_New"
     ]
 
-    # FIX NUMERIC
+    # FIX NUMERIC KPI (tetap seperti sebelumnya)
     for col in kpi_columns:
         if col in df.columns:
             df[col] = (
@@ -120,10 +120,9 @@ def load_data(file):
             )
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    # FIX DATE
+    # 🔥 FIX DATE (AUTO DETECT FORMAT)
     df["DATE_ID"] = pd.to_datetime(
         df["DATE_ID"],
-        format="%m/%d/%Y",
         errors="coerce"
     )
 
@@ -185,8 +184,16 @@ if uploaded:
 
     kpi_list = summary_kpi + traffic_kpi
 
-    start_date = st.sidebar.date_input("Start Date", df["DATE_ID"].min().date())
-    end_date = st.sidebar.date_input("End Date", df["DATE_ID"].max().date())
+    # 🔥 SAFE DATE HANDLING (FIX ERROR)
+    min_date = df["DATE_ID"].min()
+    max_date = df["DATE_ID"].max()
+
+    if pd.isna(min_date) or pd.isna(max_date):
+        st.error("❌ DATE_ID tidak terbaca. Cek format tanggal di CSV.")
+        st.stop()
+
+    start_date = st.sidebar.date_input("Start Date", min_date.date())
+    end_date = st.sidebar.date_input("End Date", max_date.date())
 
     df = df[
         (df["DATE_ID"] >= pd.to_datetime(start_date)) &
