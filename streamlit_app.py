@@ -45,7 +45,9 @@ def load_sla_master():
     kab_df = pd.read_excel(path, sheet_name="KABUPATEN")
     target_df = pd.read_excel(path, sheet_name="KPI Target", header=2)
     target_df.columns = target_df.columns.str.strip().str.lower()
-    target_df["band"] = target_df["band"].astype(str).str.extract(r'(\d+)')
+
+    if "band" in target_df.columns:
+        target_df["band"] = target_df["band"].astype(str).str.extract(r'(\d+)')
 
     return kab_df, target_df
 
@@ -75,19 +77,33 @@ def get_sla_threshold(df_scope, kpi, target_df):
 # ================= LOAD =================
 @st.cache_data
 def load_data(file):
-    df = pd.read_csv(file, compression="gzip", low_memory=False)
+
+    if file.name.endswith(".gz"):
+        df = pd.read_csv(file, compression="gzip", low_memory=False)
+    else:
+        df = pd.read_csv(file, low_memory=False)
+
+    df.replace(["-", "NIL", "None", ""], pd.NA, inplace=True)
 
     df["DATE_ID"] = pd.to_datetime(df["DATE_ID"], errors="coerce")
-    df.rename(columns={"EUTRANCELLFDD":"CELL_NAME"}, inplace=True)
 
+    df.rename(columns={"EUTRANCELLFDD":"CELL_NAME"}, inplace=True)
     df["SECTOR_GROUP"] = df["CELL_NAME"].apply(map_sector)
-    df["Band"] = df["Band"].astype(str).str.extract(r'(\d+)')
+
+    df["Band"] = (
+        df["Band"].astype(str)
+        .str.upper()
+        .str.replace(" ","", regex=False)
+        .str.replace("-","", regex=False)
+    )
+
+    df["Band"] = df["Band"].str.extract(r'(\d+)')
 
     return df
 
 
 # ================= MAIN =================
-uploaded = st.file_uploader("Upload KPI CSV")
+uploaded = st.file_uploader("Upload KPI CSV", type=["csv","gz"])
 
 layout_mode = st.sidebar.radio(
     "Layout Mode",
@@ -97,17 +113,48 @@ layout_mode = st.sidebar.radio(
 kab_df, target_df = load_sla_master()
 
 if uploaded:
+
     df = load_data(uploaded)
 
-    start = st.sidebar.date_input("Start", df["DATE_ID"].min().date())
-    end = st.sidebar.date_input("End", df["DATE_ID"].max().date())
+    # ================= KPI LIST =================
+    summary_kpi = [
+        "RRC Setup Success Rate (Service)",
+        "ERAB_Setup_Success_Rate_All_New",
+        "Session_Setup_Success_Rate_New",
+        "Session_Abnormal_Release_New",
+        "Intra-Frequency Handover Out Success Rate",
+        "inter_freq_HO",
+        "Radio_Network_Availability_Rate",
+        "UL_INT_PUSCH",
+        "Average_CQI_nonHOME",
+        "SE_New"
+    ]
+
+    traffic_kpi = [
+        "Total_Traffic_Volume_new",
+        "DL_Resource_Block_Utilizing_Rate_New",
+        "UL_Resource_Block_Utilizing_Rate_New",
+        "Downlink_Traffic_Volume_New",
+        "Uplink_Traffic_Volume_New",
+        "Active User DL"
+    ]
+
+    kpi_list = summary_kpi + traffic_kpi
+
+    # ================= FILTER =================
+    min_date = df["DATE_ID"].min()
+    max_date = df["DATE_ID"].max()
+
+    start = st.sidebar.date_input("Start", min_date.date())
+    end = st.sidebar.date_input("End", max_date.date())
 
     df = df[(df["DATE_ID"] >= pd.to_datetime(start)) &
             (df["DATE_ID"] <= pd.to_datetime(end))]
 
-    sites = st.multiselect("Site", df["SITE_ID"].unique())
+    sites = st.multiselect("Site", sorted(df["SITE_ID"].unique()))
 
     if sites:
+
         df_filtered = df[df["SITE_ID"].isin(sites)]
 
         if kab_df is not None:
@@ -120,7 +167,9 @@ if uploaded:
 
             sectors = ["SEC1","SEC2","SEC3"]
 
-            for kpi in df_filtered.select_dtypes("number").columns:
+            for kpi in kpi_list:
+                if kpi not in df_filtered.columns:
+                    continue
 
                 st.markdown("---")
                 st.subheader(kpi)
@@ -131,11 +180,13 @@ if uploaded:
 
                     for i, sec in enumerate(sectors):
                         with cols[i]:
-                            d = df_filtered[df_filtered["SECTOR_GROUP"] == sec]
-                            if d.empty: continue
 
-                            g = d.groupby("DATE_ID").mean(numeric_only=True)
-                            fig = px.line(g, y=kpi)
+                            d = df_filtered[df_filtered["SECTOR_GROUP"] == sec]
+                            if d.empty:
+                                continue
+
+                            g = d.groupby("DATE_ID")[kpi].mean().reset_index()
+                            fig = px.line(g, x="DATE_ID", y=kpi)
 
                             th = get_sla_threshold(d, kpi, target_df)
                             if th:
@@ -149,21 +200,24 @@ if uploaded:
 
                 else:
 
-                    for band in df_filtered["Band"].dropna().unique():
+                    for band in sorted(df_filtered["Band"].dropna().unique()):
 
                         st.markdown(f"### 📡 {band}")
                         cols = st.columns(3)
 
                         for i, sec in enumerate(sectors):
                             with cols[i]:
+
                                 d = df_filtered[
                                     (df_filtered["Band"] == band) &
                                     (df_filtered["SECTOR_GROUP"] == sec)
                                 ]
-                                if d.empty: continue
 
-                                g = d.groupby("DATE_ID").mean(numeric_only=True)
-                                fig = px.line(g, y=kpi)
+                                if d.empty:
+                                    continue
+
+                                g = d.groupby("DATE_ID")[kpi].mean().reset_index()
+                                fig = px.line(g, x="DATE_ID", y=kpi)
 
                                 th = get_sla_threshold(d, kpi, target_df)
                                 if th:
@@ -195,7 +249,10 @@ if uploaded:
 
             st.markdown("## Site Level Performance")
 
-            for kpi in scope.select_dtypes("number").columns:
+            for kpi in summary_kpi:
+                if kpi not in scope.columns:
+                    continue
+
                 val = scope[kpi].mean()
                 target = get_sla_threshold(scope, kpi, target_df)
 
@@ -206,7 +263,12 @@ if uploaded:
 
             g = df_filtered.groupby(["DATE_ID","SITE_ID"])["Total_Traffic_Volume_new"].sum().reset_index()
 
-            fig = px.area(g, x="DATE_ID", y="Total_Traffic_Volume_new", color="SITE_ID")
+            fig = px.area(
+                g,
+                x="DATE_ID",
+                y="Total_Traffic_Volume_new",
+                color="SITE_ID"
+            )
 
             st.plotly_chart(
                 apply_universal_legend(fig),
