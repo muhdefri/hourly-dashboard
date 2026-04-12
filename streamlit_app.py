@@ -515,6 +515,11 @@ if uploaded:
                         color="Band_Layer",
                         category_orders={"Band_Layer": order}
                     )
+					
+                    fig.update_xaxes(
+                        tickformat="%m/%d/%Y",
+                        tickangle=45
+                    )
             
                     st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
             
