@@ -560,6 +560,10 @@ if uploaded:
                     .fillna(0)
                     .round(2)
                 )
+				
+				fig.update_xaxes(
+                    dtick="D15"   # tiap 15 hari (biar tidak penuh)
+                )
 
                 df_table = df_table[[col for col in order_total if col in df_table.columns]]
                 df_table = df_table.sort_index()
