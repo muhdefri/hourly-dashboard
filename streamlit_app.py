@@ -439,6 +439,7 @@ if uploaded:
 
             df_payload = df_filtered.copy()
             df_payload["Total_Traffic_Volume_new"] /= 1024
+            df_payload["Band"] = "L" + df_payload["Band"].fillna("").astype(str)
 
             sectors = ["SEC1","SEC2","SEC3"]
 
