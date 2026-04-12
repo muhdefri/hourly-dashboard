@@ -546,6 +546,11 @@ if uploaded:
                     color="Band_Layer",
                     category_orders={"Band_Layer": order_total}
                 )
+				
+                fig.update_xaxes(
+                    dtick="D15"   # tiap 15 hari (biar tidak penuh)
+                )				
+				
 
                 st.plotly_chart(apply_universal_legend(fig_total), use_container_width=True)
 
@@ -559,10 +564,6 @@ if uploaded:
                     .pivot(index="DATE_ID", columns="Band_Layer", values="Total_Traffic_Volume_new")
                     .fillna(0)
                     .round(2)
-                )
-				
-				fig.update_xaxes(
-                    dtick="D15"   # tiap 15 hari (biar tidak penuh)
                 )
 
                 df_table = df_table[[col for col in order_total if col in df_table.columns]]
