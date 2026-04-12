@@ -517,7 +517,7 @@ if uploaded:
                     )
 					
                     fig.update_xaxes(
-                        dtick="D7"   # tiap 7 hari (biar tidak penuh)
+                        dtick="D10"   # tiap 10 hari (biar tidak penuh)
                     )
             
                     st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
