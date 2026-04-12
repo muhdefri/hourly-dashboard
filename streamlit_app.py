@@ -558,5 +558,6 @@ if uploaded:
                 )
 
                 df_table = df_table[[col for col in order_total if col in df_table.columns]]
+                df_table = df_table.sort_index()
 				
                 st.dataframe(df_table, use_container_width=True)
