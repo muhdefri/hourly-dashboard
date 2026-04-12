@@ -518,7 +518,8 @@ if uploaded:
 					
                     fig.update_xaxes(
                         tickformat="%m/%d/%Y",
-                        tickangle=45
+                        tickangle=45,
+                        showgrid=False
                     )
             
                     st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
