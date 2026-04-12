@@ -296,15 +296,12 @@ if uploaded:
         # ================= SUMMARY =================
         elif layout_mode == "Summary":
 
-            # ================= FILTER BAND =================
             band_options = ["ALL"] + sorted(df_filtered["Band"].dropna().unique())
             selected_band = st.sidebar.selectbox("Filter Band", band_options)
 
-            # ================= FILTER CELL =================
             cell_options = sorted(df_filtered["CELL_NAME"].dropna().unique())
             selected_cell = st.sidebar.multiselect("Filter Cell", cell_options, default=[])
 
-            # ================= APPLY FILTER =================
             if selected_band != "ALL":
                 df_filtered = df_filtered[df_filtered["Band"] == selected_band]
 
@@ -346,6 +343,11 @@ if uploaded:
 
             nok_found = False
 
+            kpi_rule = {
+                "Session_Abnormal_Release_New": "max",
+                "UL_INT_PUSCH": "max",
+            }
+
             for kpi in summary_kpi:
 
                 if kpi not in df_filtered.columns:
@@ -383,14 +385,17 @@ if uploaded:
                 html += f"<td>{round(target,2) if target is not None else ''}</td>"
 
                 if target is not None and pd.notna(avg_val):
-                    if "Abnormal" in kpi:
+
+                    rule = kpi_rule.get(kpi, "min")
+
+                    if rule == "max":
                         passed = "Y" if avg_val <= target else "N"
                         delta = target - avg_val
                     else:
                         passed = "Y" if avg_val >= target else "N"
                         delta = avg_val - target
 
-                    color = "#b7e1cd" if passed=="Y" else "#f4c7c3"
+                    color = "#b7e1cd" if passed == "Y" else "#f4c7c3"
 
                     html += f"<td style='background:{color}; text-align:center'><b>{passed}</b></td>"
                     html += f"<td>{round(delta,2)}</td>"
