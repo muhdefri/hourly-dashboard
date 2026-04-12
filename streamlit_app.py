@@ -296,119 +296,115 @@ if uploaded:
         # ================= SUMMARY =================
         elif layout_mode == "Summary":
 
-    # ================= FILTER BAND =================
-    band_options = ["ALL"] + sorted(df_filtered["Band"].dropna().unique())
-    selected_band = st.sidebar.selectbox("Filter Band", band_options)
+            # ================= FILTER BAND =================
+            band_options = ["ALL"] + sorted(df_filtered["Band"].dropna().unique())
+            selected_band = st.sidebar.selectbox("Filter Band", band_options)
 
-    # ================= FILTER CELL =================
-    cell_options = sorted(df_filtered["CELL_NAME"].dropna().unique())
-    selected_cell = st.sidebar.multiselect("Filter Cell", cell_options, default=[])
+            # ================= FILTER CELL =================
+            cell_options = sorted(df_filtered["CELL_NAME"].dropna().unique())
+            selected_cell = st.sidebar.multiselect("Filter Cell", cell_options, default=[])
 
-    # ================= APPLY FILTER =================
-    if selected_band != "ALL":
-        df_filtered = df_filtered[df_filtered["Band"] == selected_band]
+            # ================= APPLY FILTER =================
+            if selected_band != "ALL":
+                df_filtered = df_filtered[df_filtered["Band"] == selected_band]
 
-    if len(selected_cell) > 0:
-        df_filtered = df_filtered[df_filtered["CELL_NAME"].isin(selected_cell)]
+            if len(selected_cell) > 0:
+                df_filtered = df_filtered[df_filtered["CELL_NAME"].isin(selected_cell)]
 
-    if df_filtered.empty:
-        st.warning("⚠️ No data after Band/Cell filtering")
-        st.stop()
+            if df_filtered.empty:
+                st.warning("⚠️ No data after Band/Cell filtering")
+                st.stop()
 
-    show_only_nok = st.checkbox("Show Only NOK KPI", value=False)
+            show_only_nok = st.checkbox("Show Only NOK KPI", value=False)
 
-    if df_filtered.empty:
-        st.warning("⚠️ No data after filtering")
-        st.stop()
+            unique_days = sorted(df_filtered["DATE_ID"].dt.date.unique())
 
-    unique_days = sorted(df_filtered["DATE_ID"].dt.date.unique())
+            if len(unique_days) == 0:
+                st.warning("⚠️ No data in selected date range")
+                st.stop()
 
-    if len(unique_days) == 0:
-        st.warning("⚠️ No data in selected date range")
-        st.stop()
+            st.markdown("## Site Level Performance")
 
-    st.markdown("## Site Level Performance")
+            html = "<table style='border-collapse:collapse; width:100%;'>"
 
-    html = "<table style='border-collapse:collapse; width:100%;'>"
+            html += "<tr style='background:#a5d6a7;'>"
+            html += "<th rowspan='2'>KPI</th>"
 
-    html += "<tr style='background:#a5d6a7;'>"
-    html += "<th rowspan='2'>KPI</th>"
+            for i in range(len(unique_days)):
+                html += f"<th>DAY {i+1}</th>"
 
-    for i in range(len(unique_days)):
-        html += f"<th>DAY {i+1}</th>"
+            html += "<th rowspan='2'>Average</th>"
+            html += "<th rowspan='2'>Target KPI</th>"
+            html += "<th rowspan='2'>Passed</th>"
+            html += "<th rowspan='2'>Delta</th>"
+            html += "</tr>"
 
-    html += "<th rowspan='2'>Average</th>"
-    html += "<th rowspan='2'>Target KPI</th>"
-    html += "<th rowspan='2'>Passed</th>"
-    html += "<th rowspan='2'>Delta</th>"
-    html += "</tr>"
+            html += "<tr style='background:#c8e6c9;'>"
+            for d in unique_days:
+                html += f"<th>{pd.to_datetime(d).strftime('%d-%b-%y')}</th>"
+            html += "</tr>"
 
-    html += "<tr style='background:#c8e6c9;'>"
-    for d in unique_days:
-        html += f"<th>{pd.to_datetime(d).strftime('%d-%b-%y')}</th>"
-    html += "</tr>"
+            nok_found = False
 
-    nok_found = False
+            for kpi in summary_kpi:
 
-    for kpi in summary_kpi:
+                if kpi not in df_filtered.columns:
+                    continue
 
-        if kpi not in df_filtered.columns:
-            continue
+                daily_values = []
 
-        daily_values = []
+                for d in unique_days:
+                    val = df_filtered[df_filtered["DATE_ID"].dt.date == d][kpi].mean()
+                    daily_values.append(val)
 
-        for d in unique_days:
-            val = df_filtered[df_filtered["DATE_ID"].dt.date == d][kpi].mean()
-            daily_values.append(val)
+                avg_val = pd.Series(daily_values).mean()
+                target = get_sla_threshold(df_filtered, kpi, target_df)
 
-        avg_val = pd.Series(daily_values).mean()
-        target = get_sla_threshold(df_filtered, kpi, target_df)
+                is_nok = False
+                if target is not None and pd.notna(avg_val):
+                    if "Abnormal" in kpi:
+                        is_nok = avg_val > target
+                    else:
+                        is_nok = avg_val < target
 
-        is_nok = False
-        if target is not None and pd.notna(avg_val):
-            if "Abnormal" in kpi:
-                is_nok = avg_val > target
-            else:
-                is_nok = avg_val < target
+                if is_nok:
+                    nok_found = True
 
-        if is_nok:
-            nok_found = True
+                if show_only_nok and not is_nok:
+                    continue
 
-        if show_only_nok and not is_nok:
-            continue
+                html += "<tr>"
+                html += f"<td><b>{kpi}</b></td>"
 
-        html += "<tr>"
-        html += f"<td><b>{kpi}</b></td>"
+                for val in daily_values:
+                    html += f"<td>{round(val,2) if pd.notna(val) else ''}</td>"
 
-        for val in daily_values:
-            html += f"<td>{round(val,2) if pd.notna(val) else ''}</td>"
+                html += f"<td>{round(avg_val,2) if pd.notna(avg_val) else ''}</td>"
+                html += f"<td>{round(target,2) if target is not None else ''}</td>"
 
-        html += f"<td>{round(avg_val,2) if pd.notna(avg_val) else ''}</td>"
-        html += f"<td>{round(target,2) if target is not None else ''}</td>"
+                if target is not None and pd.notna(avg_val):
+                    if "Abnormal" in kpi:
+                        passed = "Y" if avg_val <= target else "N"
+                        delta = target - avg_val
+                    else:
+                        passed = "Y" if avg_val >= target else "N"
+                        delta = avg_val - target
 
-        if target is not None and pd.notna(avg_val):
-            if "Abnormal" in kpi:
-                passed = "Y" if avg_val <= target else "N"
-                delta = target - avg_val
-            else:
-                passed = "Y" if avg_val >= target else "N"
-                delta = avg_val - target
+                    color = "#b7e1cd" if passed=="Y" else "#f4c7c3"
 
-            color = "#b7e1cd" if passed=="Y" else "#f4c7c3"
+                    html += f"<td style='background:{color}; text-align:center'><b>{passed}</b></td>"
+                    html += f"<td>{round(delta,2)}</td>"
+                else:
+                    html += "<td></td><td></td>"
 
-            html += f"<td style='background:{color}; text-align:center'><b>{passed}</b></td>"
-            html += f"<td>{round(delta,2)}</td>"
-        else:
-            html += "<td></td><td></td>"
+                html += "</tr>"
 
-        html += "</tr>"
+            html += "</table>"
 
-    html += "</table>"
+            if show_only_nok and not nok_found:
+                st.success("✅ All KPI Passed SLA")
 
-    if show_only_nok and not nok_found:
-        st.success("✅ All KPI Passed SLA")
-
-    st.markdown(html, unsafe_allow_html=True)
+            st.markdown(html, unsafe_allow_html=True)
 
         # ================= PAYLOAD =================
         elif layout_mode == "Payload Stack":
