@@ -452,10 +452,7 @@ if uploaded:
                 color="SITE_ID"
             )
 			
-             fig_total.update_xaxes(
-                dtick="D15"   # tiap 15 hari (biar tidak penuh)
-            )				
-
+			
             st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
 
             # ================= PAYLOAD BREAKDOWN =================
