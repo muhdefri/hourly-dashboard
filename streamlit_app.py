@@ -530,11 +530,17 @@ if uploaded:
                     .reset_index()
                 )
 
+                order_total = sorted(
+                    df_total_band["Band_Layer"].dropna().unique(),
+                    key=lambda x: int(re.findall(r'\d+', x)[0])
+                )
+                
                 fig_total = px.area(
                     df_total_band,
                     x="DATE_ID",
                     y="Total_Traffic_Volume_new",
-                    color="Band_Layer"
+                    color="Band_Layer",
+                    category_orders={"Band_Layer": order_total}
                 )
 
                 st.plotly_chart(apply_universal_legend(fig_total), use_container_width=True)
