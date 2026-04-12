@@ -46,6 +46,27 @@ def map_sector(cell_name):
     return f"SEC{(hash_val % 3) + 1}"
 
 
+# ================= LAYER DETECTION =================
+def detect_layer(cell):
+
+    cell = str(cell).upper()
+
+    # F1 → ME / VE
+    if re.search(r'(ME\d*|VE\d*)$', cell):
+        return "F1"
+
+    # F2 → MF / VF
+    elif re.search(r'(MF\d*|VF\d*)$', cell):
+        return "F2"
+
+    # F3 → MV / VV
+    elif re.search(r'(MV\d*|VV\d*)$', cell):
+        return "F3"
+
+    return None	
+	
+
+
 # ================= SLA =================
 @st.cache_data
 def load_sla_master():
@@ -439,7 +460,26 @@ if uploaded:
 
             df_payload = df_filtered.copy()
             df_payload["Total_Traffic_Volume_new"] /= 1024
+            
+            # Band jadi L1800, dll
             df_payload["Band"] = "L" + df_payload["Band"].fillna("").astype(str)
+            
+            # ================= LAYER =================
+            df_payload["LAYER"] = df_payload["CELL_NAME"].apply(detect_layer)
+            
+            # ================= COMBINE BAND + LAYER =================
+            df_payload["Band_Layer"] = df_payload["Band"]
+            
+            mask_23 = df_payload["Band"] == "L2300"
+            
+            df_payload.loc[mask_23, "Band_Layer"] = (
+                df_payload.loc[mask_23, "Band"] + "_" + df_payload.loc[mask_23, "LAYER"]
+            )
+            
+            # OPTIONAL (hapus yang ga punya layer di L2300)
+            df_payload = df_payload[
+                (df_payload["Band"] != "L2300") | (df_payload["LAYER"].notna())
+            ]
 
             sectors = ["SEC1","SEC2","SEC3"]
 
@@ -458,7 +498,7 @@ if uploaded:
                         continue
 
                     df_plot = (
-                        df_sec.groupby(["DATE_ID","Band"])["Total_Traffic_Volume_new"]
+                        df_sec.groupby(["DATE_ID","Band_Layer"])["Total_Traffic_Volume_new"]
                         .sum()
                         .reset_index()
                     )
@@ -467,7 +507,7 @@ if uploaded:
                         df_plot,
                         x="DATE_ID",
                         y="Total_Traffic_Volume_new",
-                        color="Band"
+                        color="Band_Layer"
                     )
 
                     st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
@@ -479,7 +519,7 @@ if uploaded:
                 st.markdown("### Band - Total")
 
                 df_total_band = (
-                    df_payload.groupby(["DATE_ID","Band"])["Total_Traffic_Volume_new"]
+                    df_payload.groupby(["DATE_ID","Band_Layer"])["Total_Traffic_Volume_new"]
                     .sum()
                     .reset_index()
                 )
@@ -488,7 +528,7 @@ if uploaded:
                     df_total_band,
                     x="DATE_ID",
                     y="Total_Traffic_Volume_new",
-                    color="Band"
+                    color="Band_Layer"
                 )
 
                 st.plotly_chart(apply_universal_legend(fig_total), use_container_width=True)
@@ -497,10 +537,10 @@ if uploaded:
                 st.markdown("### By Band - Data Details")
 
                 df_table = (
-                    df_payload.groupby(["DATE_ID","Band"])["Total_Traffic_Volume_new"]
+                    df_payload.groupby(["DATE_ID","Band_Layer"])["Total_Traffic_Volume_new"]
                     .sum()
                     .reset_index()
-                    .pivot(index="DATE_ID", columns="Band", values="Total_Traffic_Volume_new")
+                    .pivot(index="DATE_ID", columns="Band_Layer", values="Total_Traffic_Volume_new")
                     .fillna(0)
                     .round(2)
                 )
