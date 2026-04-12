@@ -503,8 +503,11 @@ if uploaded:
                         .reset_index()
                     )
             
-                    order = sorted(df_plot["Band_Layer"].dropna().unique())
-            
+                    order = sorted(
+                        df_plot["Band_Layer"].dropna().unique(),
+                        key=lambda x: int(re.findall(r'\d+', x)[0])
+                    )
+                    
                     fig = px.area(
                         df_plot,
                         x="DATE_ID",
