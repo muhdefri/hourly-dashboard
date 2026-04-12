@@ -468,7 +468,7 @@ if uploaded:
             df_payload["LAYER"] = df_payload["CELL_NAME"].apply(detect_layer)
             
             # ================= COMBINE BAND + LAYER =================
-            df_payload["Band_Layer"] = df_payload["Band"]
+            df_payload["Band_Layer"] = df_payload["Band"].copy()
             
             mask_23 = df_payload["Band"] == "L2300"
             
