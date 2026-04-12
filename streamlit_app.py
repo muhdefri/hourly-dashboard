@@ -432,3 +432,76 @@ if uploaded:
             )
 
             st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
+
+            # ================= PAYLOAD BREAKDOWN =================
+            st.markdown("---")
+            st.header("📡 Payload Breakdown by Band")
+
+            df_payload = df_filtered.copy()
+            df_payload["Total_Traffic_Volume_new"] /= 1024
+
+            sectors = ["SEC1","SEC2","SEC3"]
+
+            # ================= ROW 1 =================
+            cols = st.columns(3)
+
+            for i, sec in enumerate(sectors):
+                with cols[i]:
+
+                    st.markdown(f"### Band - Sector {i+1}")
+
+                    df_sec = df_payload[df_payload["SECTOR_GROUP"] == sec]
+
+                    if df_sec.empty:
+                        st.warning("No Data")
+                        continue
+
+                    df_plot = (
+                        df_sec.groupby(["DATE_ID","Band"])["Total_Traffic_Volume_new"]
+                        .sum()
+                        .reset_index()
+                    )
+
+                    fig = px.area(
+                        df_plot,
+                        x="DATE_ID",
+                        y="Total_Traffic_Volume_new",
+                        color="Band"
+                    )
+
+                    st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
+
+            # ================= ROW 2 =================
+            col1, col2 = st.columns([2,1])
+
+            with col1:
+                st.markdown("### Band - Total")
+
+                df_total_band = (
+                    df_payload.groupby(["DATE_ID","Band"])["Total_Traffic_Volume_new"]
+                    .sum()
+                    .reset_index()
+                )
+
+                fig_total = px.area(
+                    df_total_band,
+                    x="DATE_ID",
+                    y="Total_Traffic_Volume_new",
+                    color="Band"
+                )
+
+                st.plotly_chart(apply_universal_legend(fig_total), use_container_width=True)
+
+            with col2:
+                st.markdown("### By Band - Data Details")
+
+                df_table = (
+                    df_payload.groupby(["DATE_ID","Band"])["Total_Traffic_Volume_new"]
+                    .sum()
+                    .reset_index()
+                    .pivot(index="DATE_ID", columns="Band", values="Total_Traffic_Volume_new")
+                    .fillna(0)
+                    .round(2)
+                )
+
+                st.dataframe(df_table, use_container_width=True)
