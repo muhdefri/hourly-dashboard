@@ -517,9 +517,7 @@ if uploaded:
                     )
 					
                     fig.update_xaxes(
-                        tickformat="%m/%d/%Y",
-                        tickangle=45,
-                        showgrid=False
+                        dtick="D2"   # tiap 2 hari (biar tidak penuh)
                     )
             
                     st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
