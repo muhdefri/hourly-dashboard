@@ -557,4 +557,6 @@ if uploaded:
                     .round(2)
                 )
 
+                df_table = df_table[[col for col in order_total if col in df_table.columns]]
+				
                 st.dataframe(df_table, use_container_width=True)
