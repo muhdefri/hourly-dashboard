@@ -476,9 +476,9 @@ if uploaded:
             df_payload["LAYER"] = df_payload["LAYER"].fillna("UNK")
 
             df_payload.loc[mask_23, "Band_Layer"] = (
-                df_payload.loc[mask_23, "Band"] + "_" + df_payload.loc[mask_23, "LAYER"]
-            )
-            
+                df_payload.loc[mask_23, "Band"].astype(str) + "_" +
+                df_payload.loc[mask_23, "LAYER"].astype(str)
+            )            
             # OPTIONAL (hapus yang ga punya layer di L2300)
             df_payload = df_payload[
                 (df_payload["Band"] != "L2300") | (df_payload["LAYER"].notna())
