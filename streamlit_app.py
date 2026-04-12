@@ -487,34 +487,34 @@ if uploaded:
             cols = st.columns(3)
             
             for i, sec in enumerate(sectors):
-            with cols[i]:
+                with cols[i]:
             
-                st.markdown(f"### Band - Sector {i+1}")
+                    st.markdown(f"### Band - Sector {i+1}")
             
-                df_sec = df_payload[df_payload["SECTOR_GROUP"] == sec]
+                    df_sec = df_payload[df_payload["SECTOR_GROUP"] == sec]
             
-                if df_sec.empty:
-                    st.warning("No Data")
-                    continue
+                    if df_sec.empty:
+                        st.warning("No Data")
+                        continue
             
-                df_plot = (
-                    df_sec.groupby(["DATE_ID","Band_Layer"])["Total_Traffic_Volume_new"]
-                    .sum()
-                    .reset_index()
-                )
+                    df_plot = (
+                        df_sec.groupby(["DATE_ID","Band_Layer"])["Total_Traffic_Volume_new"]
+                        .sum()
+                        .reset_index()
+                    )
             
-                order = sorted(df_plot["Band_Layer"].dropna().unique())
+                    order = sorted(df_plot["Band_Layer"].dropna().unique())
             
-                fig = px.area(
-                    df_plot,
-                    x="DATE_ID",
-                    y="Total_Traffic_Volume_new",
-                    color="Band_Layer",
-                    category_orders={"Band_Layer": order}
-                )
+                    fig = px.area(
+                        df_plot,
+                        x="DATE_ID",
+                        y="Total_Traffic_Volume_new",
+                        color="Band_Layer",
+                        category_orders={"Band_Layer": order}
+                    )
             
-        st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
-
+                    st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
+            
             # ================= ROW 2 =================
             col1, col2 = st.columns([2,1])
 
