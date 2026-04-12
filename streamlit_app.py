@@ -547,8 +547,9 @@ if uploaded:
                     category_orders={"Band_Layer": order_total}
                 )
 				
-                fig.update_xaxes(
-                    dtick="D15"   # tiap 15 hari (biar tidak penuh)
+                fig_total.update_xaxes(
+                    tickformat="%m/%d/%Y",
+                    tickangle=45
                 )				
 				
                 st.plotly_chart(apply_universal_legend(fig_total), use_container_width=True)
