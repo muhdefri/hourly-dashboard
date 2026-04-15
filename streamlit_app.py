@@ -99,6 +99,13 @@ def get_sla_threshold(df_scope, kpi, target_df):
             kpi.lower().replace("_","").replace(" ","")
         ]
 
+        # 🔥 fallback biar match ke _New juga
+        if not col_match and "abnormalrelease" in kpi.lower():
+            col_match = [
+                c for c in target_df.columns
+                if "abnormalrelease" in c.replace("_","").replace(" ","")
+            ]
+
         if not th.empty and col_match:
             return th[col_match[0]].values[0]
 
@@ -446,7 +453,6 @@ if uploaded:
 			
             st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
 
-            # ================= PAYLOAD BREAKDOWN =================
             st.markdown("---")
             st.header("📡 Payload Breakdown by Band")
 
@@ -511,9 +517,7 @@ if uploaded:
                         category_orders={"Band_Layer": order}
                     )
 					
-                    fig.update_xaxes(
-                        dtick="D30"
-                    )
+                    fig.update_xaxes(dtick="D30")
             
                     st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
             
@@ -541,9 +545,7 @@ if uploaded:
                     category_orders={"Band_Layer": order_total}
                 )
 				
-                fig_total.update_xaxes(
-                dtick="D15"
-                )				
+                fig_total.update_xaxes(dtick="D15")				
 				
                 st.plotly_chart(apply_universal_legend(fig_total), use_container_width=True)
 
