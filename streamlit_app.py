@@ -48,15 +48,12 @@ def map_sector(cell_name):
 
 # ================= LAYER DETECTION =================
 def detect_layer(cell):
-
     cell = str(cell).upper()
 
     if re.search(r'(ME\d*|VE\d*)$', cell):
         return "F1"
-
     elif re.search(r'(MF\d*|VF\d*)$', cell):
         return "F2"
-
     elif re.search(r'(MV\d*|VV\d*)$', cell):
         return "F3"
 
@@ -93,18 +90,17 @@ def get_sla_threshold(df_scope, kpi, target_df):
             (target_df["band"].str.lower().str.strip() == band)
         ]
 
+        # 🔥 FIX KHUSUS SESSION ABNORMAL (mapping ke SLA lama)
+        if kpi == "Session_Abnormal_Release":
+            kpi_lookup = "Session_Abnormal_Release_New"
+        else:
+            kpi_lookup = kpi
+
         col_match = [
             c for c in target_df.columns
             if c.replace("_","").replace(" ","") ==
-            kpi.lower().replace("_","").replace(" ","")
+            kpi_lookup.lower().replace("_","").replace(" ","")
         ]
-
-        # 🔥 FIX khusus abnormal release
-        if not col_match and "abnormalrelease" in kpi.lower():
-            col_match = [
-                c for c in target_df.columns
-                if "abnormal" in c.lower() and "release" in c.lower()
-            ]
 
         if not th.empty and col_match:
             return th[col_match[0]].values[0]
@@ -451,3 +447,109 @@ if uploaded:
             )
 
             st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
+
+            st.markdown("---")
+            st.header("📡 Payload Breakdown by Band")
+
+            df_payload = df_filtered.copy()
+            df_payload["Total_Traffic_Volume_new"] /= 1024
+
+            df_payload["Band"] = "L" + df_payload["Band"].fillna("").astype(str)
+            df_payload["LAYER"] = df_payload["CELL_NAME"].apply(detect_layer)
+
+            df_payload["Band_Layer"] = df_payload["Band"].copy()
+
+            mask_23 = df_payload["Band"] == "L2300"
+            df_payload["LAYER"] = df_payload["LAYER"].fillna("UNK")
+
+            df_payload.loc[mask_23, "Band_Layer"] = (
+                df_payload.loc[mask_23, "Band"].astype(str) + "_" +
+                df_payload.loc[mask_23, "LAYER"].astype(str)
+            )
+
+            df_payload = df_payload[
+                (df_payload["Band"] != "L2300") | (df_payload["LAYER"].notna())
+            ]
+
+            sectors = ["SEC1","SEC2","SEC3"]
+
+            cols = st.columns(3)
+
+            for i, sec in enumerate(sectors):
+                with cols[i]:
+
+                    st.markdown(f"### Band - Sector {i+1}")
+
+                    df_sec = df_payload[df_payload["SECTOR_GROUP"] == sec]
+
+                    if df_sec.empty:
+                        st.warning("No Data")
+                        continue
+
+                    df_plot = (
+                        df_sec.groupby(["DATE_ID","Band_Layer"])["Total_Traffic_Volume_new"]
+                        .sum()
+                        .reset_index()
+                    )
+
+                    order = sorted(
+                        df_plot["Band_Layer"].dropna().unique(),
+                        key=lambda x: int(re.findall(r'\d+', x)[0])
+                    )
+
+                    fig = px.area(
+                        df_plot,
+                        x="DATE_ID",
+                        y="Total_Traffic_Volume_new",
+                        color="Band_Layer",
+                        category_orders={"Band_Layer": order}
+                    )
+
+                    fig.update_xaxes(dtick="D30")
+
+                    st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
+
+            col1, col2 = st.columns([2,1])
+
+            with col1:
+                st.markdown("### Band - Total")
+
+                df_total_band = (
+                    df_payload.groupby(["DATE_ID","Band_Layer"])["Total_Traffic_Volume_new"]
+                    .sum()
+                    .reset_index()
+                )
+
+                order_total = sorted(
+                    df_total_band["Band_Layer"].dropna().unique(),
+                    key=lambda x: int(re.findall(r'\d+', x)[0])
+                )
+
+                fig_total = px.area(
+                    df_total_band,
+                    x="DATE_ID",
+                    y="Total_Traffic_Volume_new",
+                    color="Band_Layer",
+                    category_orders={"Band_Layer": order_total}
+                )
+
+                fig_total.update_xaxes(dtick="D15")
+
+                st.plotly_chart(apply_universal_legend(fig_total), use_container_width=True)
+
+            with col2:
+                st.markdown("### By Band - Data Details")
+
+                df_table = (
+                    df_payload.groupby(["DATE_ID","Band_Layer"])["Total_Traffic_Volume_new"]
+                    .sum()
+                    .reset_index()
+                    .pivot(index="DATE_ID", columns="Band_Layer", values="Total_Traffic_Volume_new")
+                    .fillna(0)
+                    .round(2)
+                )
+
+                df_table = df_table[[col for col in order_total if col in df_table.columns]]
+                df_table = df_table.sort_index()
+
+                st.dataframe(df_table, use_container_width=True)
