@@ -51,16 +51,20 @@ def detect_layer(cell):
 
     cell = str(cell).upper()
 
+    # F1 → ME / VE
     if re.search(r'(ME\d*|VE\d*)$', cell):
         return "F1"
 
+    # F2 → MF / VF
     elif re.search(r'(MF\d*|VF\d*)$', cell):
         return "F2"
 
+    # F3 → MV / VV
     elif re.search(r'(MV\d*|VV\d*)$', cell):
         return "F3"
 
     return None	
+	
 
 
 # ================= SLA =================
@@ -74,6 +78,7 @@ def load_sla_master():
     target_df = pd.read_excel(path, sheet_name="KPI Target", header=2)
     target_df.columns = target_df.columns.str.strip().str.lower()
 
+    # 🔥 FIX BAND MATCH (SLA)
     if "band" in target_df.columns:
         target_df["band"] = target_df["band"].astype(str).str.extract(r'(\d+)')
 
@@ -140,6 +145,7 @@ def load_data(file):
             )
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
+    # DATE
     df["DATE_ID"] = pd.to_datetime(df["DATE_ID"], errors="coerce")
 
     if "Hour_id" in df.columns:
@@ -152,6 +158,7 @@ def load_data(file):
     df.rename(columns={"EUTRANCELLFDD":"CELL_NAME"}, inplace=True)
     df["SECTOR_GROUP"] = df["CELL_NAME"].apply(map_sector)
 
+    # BAND (existing logic tetap)
     df["Band"] = (
         df["Band"].astype(str)
         .str.upper()
@@ -159,6 +166,7 @@ def load_data(file):
         .str.replace("-","", regex=False)
     )
 
+    # 🔥 FIX BAND MATCH (DATA)
     df["Band"] = df["Band"].str.extract(r'(\d+)')
 
     return df
@@ -182,7 +190,7 @@ if uploaded:
         "RRC Setup Success Rate (Service)",
         "ERAB_Setup_Success_Rate_All_New",
         "Session_Setup_Success_Rate_New",
-        "Session_Abnormal_Release",
+        "Session_Abnormal_Release_New",
         "Intra-Frequency Handover Out Success Rate",
         "inter_freq_HO",
         "Radio_Network_Availability_Rate",
@@ -202,6 +210,7 @@ if uploaded:
 
     kpi_list = summary_kpi + traffic_kpi
 
+    # SAFE DATE
     min_date = df["DATE_ID"].min()
     max_date = df["DATE_ID"].max()
 
@@ -356,7 +365,7 @@ if uploaded:
             nok_found = False
 
             kpi_rule = {
-                "Session_Abnormal_Release": "max",
+                "Session_Abnormal_Release_New": "max",
                 "UL_INT_PUSCH": "max",
             }
 
@@ -453,10 +462,13 @@ if uploaded:
             df_payload = df_filtered.copy()
             df_payload["Total_Traffic_Volume_new"] /= 1024
             
+            # Band jadi L1800, dll
             df_payload["Band"] = "L" + df_payload["Band"].fillna("").astype(str)
             
+            # ================= LAYER =================
             df_payload["LAYER"] = df_payload["CELL_NAME"].apply(detect_layer)
             
+            # ================= COMBINE BAND + LAYER =================
             df_payload["Band_Layer"] = df_payload["Band"].copy()
             
             mask_23 = df_payload["Band"] == "L2300"
@@ -472,13 +484,14 @@ if uploaded:
                 df_payload.loc[mask_23, "Band"].astype(str) + "_" +
                 df_payload.loc[mask_23, "LAYER"].astype(str)
             )            
-
+            # OPTIONAL (hapus yang ga punya layer di L2300)
             df_payload = df_payload[
                 (df_payload["Band"] != "L2300") | (df_payload["LAYER"].notna())
             ]
 
             sectors = ["SEC1","SEC2","SEC3"]
 
+            # ================= ROW 1 =================
             cols = st.columns(3)
             
             for i, sec in enumerate(sectors):
@@ -512,11 +525,12 @@ if uploaded:
                     )
 					
                     fig.update_xaxes(
-                        dtick="D30"
+                        dtick="D30"   # tiap 30 hari (biar tidak penuh)
                     )
             
                     st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
             
+            # ================= ROW 2 =================
             col1, col2 = st.columns([2,1])
 
             with col1:
@@ -542,7 +556,7 @@ if uploaded:
                 )
 				
                 fig_total.update_xaxes(
-                dtick="D15"
+                dtick="D15"   # tiap 15 hari (biar tidak penuh)
                 )				
 				
                 st.plotly_chart(apply_universal_legend(fig_total), use_container_width=True)
