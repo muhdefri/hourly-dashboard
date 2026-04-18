@@ -66,7 +66,7 @@ def detect_layer(cell):
     elif re.search(r'(MV\d*|VV\d*)$', cell):
         return "F3"
 
-    return None	
+    return None 
 
 
 # ================= SLA =================
@@ -512,13 +512,13 @@ if uploaded:
                 y="Total_Traffic_Volume_new",
                 color="SITE_ID"
             )
-			
-			fig.update_xaxes(
+            
+            fig.update_xaxes(
                 dtick="D30",
                 tickformat="%d-%b-%Y"
             )
-			
-			
+            
+            
             st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
 
             # ================= PAYLOAD BREAKDOWN =================
@@ -584,7 +584,7 @@ if uploaded:
                         color="Band_Layer",
                         category_orders={"Band_Layer": order}
                     )
-					
+                    
                     fig.update_xaxes(
                         dtick="D30"   # tiap 30 hari (biar tidak penuh)
                     )
@@ -615,11 +615,11 @@ if uploaded:
                     color="Band_Layer",
                     category_orders={"Band_Layer": order_total}
                 )
-				
+                
                 fig_total.update_xaxes(
                 dtick="D15"   # tiap 15 hari (biar tidak penuh)
-                )				
-				
+                )               
+                
                 st.plotly_chart(apply_universal_legend(fig_total), use_container_width=True)
 
             with col2:
@@ -636,7 +636,7 @@ if uploaded:
 
                 df_table = df_table[[col for col in order_total if col in df_table.columns]]
                 df_table = df_table.sort_index()
-				
+                
                 st.dataframe(df_table, use_container_width=True)
         # ================= NEW =================
         elif layout_mode == "Site KPI Dashboard":
@@ -680,11 +680,11 @@ if uploaded:
             st.markdown("### 📈 KPI Trend")
 
             fig = px.line(df_site, x="DATE_ID", y=kpi_selected, color="SITE_ID")
-			
+            
             fig.update_xaxes(
                 dtick="D30",
                 tickformat="%d-%b-%Y"
-            )			
+            )           
 
             th = get_sla_threshold(df_filtered, kpi_selected, target_df)
             if pd.notna(th):
