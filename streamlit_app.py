@@ -662,8 +662,6 @@ if uploaded:
 			
             th = get_sla_site_worst(df_filtered, kpi_selected, target_df)
 
-            st.caption(f"⚠️ SLA (worst band): {round(th,2) if th is not None else '-'}")
-
             df_site = (
                 df_filtered.groupby(["SITE_ID","DATE_ID"])[kpi_selected]
                 .mean()
@@ -695,15 +693,14 @@ if uploaded:
                     )
             
                     # ✅ PINDAH KE SINI (DALAM LOOP)
-                    st.caption(f"Target: {round(th,2) if th is not None else '-'} | {status}")
+                    if status == "❌ NOK":
+                         st.error("NOK")
+                    elif status == "✅ OK":
+                        st.success("OK")
 
             st.markdown("### 📈 KPI Trend")
 
             fig = px.line(df_site, x="DATE_ID", y=kpi_selected, color="SITE_ID")
-
-            
-            if pd.notna(th):
-                fig.add_hline(y=float(th), line_dash="dash", line_color="red")
 
             st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
 
