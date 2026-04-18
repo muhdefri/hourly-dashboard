@@ -87,10 +87,8 @@ def get_sla_threshold(df_scope, kpi, target_df):
     try:
         kab = str(df_scope["KABUPATEN"].dropna().iloc[0]).lower().strip()
 
-        # Ambil semua band dalam scope (site)
         bands = df_scope["Band"].dropna().unique()
 
-        # Cari kolom KPI yang matching di target_df
         col_match = [
             c for c in target_df.columns
             if c.replace("_", "").replace(" ", "") ==
@@ -102,7 +100,6 @@ def get_sla_threshold(df_scope, kpi, target_df):
 
         th_list = []
 
-        # Loop semua band → ambil SLA masing-masing
         for b in bands:
             th = target_df[
                 (target_df["kabupaten"].str.lower().str.strip() == kab) &
@@ -114,9 +111,42 @@ def get_sla_threshold(df_scope, kpi, target_df):
                 if pd.notna(val):
                     th_list.append(float(val))
 
-        # Ambil SLA paling ketat (minimum)
         if len(th_list) > 0:
             return min(th_list)
+
+    except Exception as e:
+        print("SLA error:", e)
+        return None
+
+    return None
+
+
+def get_sla_threshold_band(df_scope, kpi, target_df):
+
+    if target_df is None or df_scope.empty:
+        return None
+
+    try:
+        kab = str(df_scope["KABUPATEN"].dropna().iloc[0]).lower().strip()
+
+        band = str(df_scope["Band"].dropna().unique()[0]).lower().strip()
+
+        col_match = [
+            c for c in target_df.columns
+            if c.replace("_", "").replace(" ", "") ==
+               kpi.lower().replace("_", "").replace(" ", "")
+        ]
+
+        if not col_match:
+            return None
+
+        th = target_df[
+            (target_df["kabupaten"].str.lower().str.strip() == kab) &
+            (target_df["band"].str.lower().str.strip() == band)
+        ]
+
+        if not th.empty:
+            return th[col_match[0]].values[0]
 
     except Exception as e:
         print("SLA error:", e)
