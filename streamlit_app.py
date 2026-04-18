@@ -620,6 +620,10 @@ if uploaded:
             st.header("🏢 Site Level KPI Dashboard")
 
             kpi_selected = st.selectbox("Select KPI", kpi_list)
+			
+            th = get_sla_site_worst(df_filtered, kpi_selected, target_df)
+
+            st.caption(f"⚠️ SLA (worst band): {round(th,2) if th is not None else '-'}")
 
             df_site = (
                 df_filtered.groupby(["SITE_ID","DATE_ID"])[kpi_selected]
@@ -634,8 +638,7 @@ if uploaded:
                 with cols[i]:
                     df_s = df_site[df_site["SITE_ID"] == site]
                     avg_val = df_s[kpi_selected].mean()
-                    th = get_sla_threshold(df_filtered, kpi_selected, target_df)
-
+            
                     if pd.notna(avg_val) and th is not None:
                         if "Abnormal" in kpi_selected:
                             status = "❌ NOK" if avg_val > th else "✅ OK"
@@ -643,14 +646,23 @@ if uploaded:
                             status = "❌ NOK" if avg_val < th else "✅ OK"
                     else:
                         status = "-"
-
-                    st.metric(site, round(avg_val,2) if pd.notna(avg_val) else "-", status)
+            
+                    delta = avg_val - th if (th is not None and pd.notna(avg_val)) else None
+            
+                    st.metric(
+                        site,
+                        round(avg_val,2) if pd.notna(avg_val) else "-",
+                        delta=round(delta,2) if delta is not None else None
+                    )
+            
+                    # ✅ PINDAH KE SINI (DALAM LOOP)
+                    st.caption(f"Target: {round(th,2) if th is not None else '-'} | {status}")
 
             st.markdown("### 📈 KPI Trend")
 
             fig = px.line(df_site, x="DATE_ID", y=kpi_selected, color="SITE_ID")
 
-            th = get_sla_threshold(df_filtered, kpi_selected, target_df)
+            
             if pd.notna(th):
                 fig.add_hline(y=float(th), line_dash="dash", line_color="red")
 
