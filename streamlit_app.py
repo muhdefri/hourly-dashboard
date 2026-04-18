@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -21,15 +20,8 @@ def apply_universal_legend(fig):
         ),
         margin=dict(l=20, r=20, t=40, b=150)
     )
-
-    # 🔥 Tebalin semua garis line chart
-    fig.update_traces(
-        line=dict(width=3),
-        mode="lines+markers",
-        marker=dict(size=6)
-    )
-
     return fig
+
 
 # ================= SMART SECTOR MAP =================
 def map_sector(cell_name):
@@ -66,7 +58,7 @@ def detect_layer(cell):
     elif re.search(r'(MV\d*|VV\d*)$', cell):
         return "F3"
 
-    return None 
+    return None	
 
 
 # ================= SLA =================
@@ -309,29 +301,13 @@ if uploaded:
                                 continue
 
                             fig = px.line(df_g, x="DATE_ID", y=kpi, color="CELL_NAME")
-                            
-                            date_range = (df_g["DATE_ID"].max() - df_g["DATE_ID"].min()).days
-                            
-                            if date_range <= 14:
-                                dtick = "D1"
-                            elif date_range <= 30:
-                                dtick = "D3"
-                            elif date_range <= 90:
-                                dtick = "D7"
-                            else:
-                                dtick = "D15"
-                            
-                            fig.update_xaxes(
-                                dtick=dtick,
-                                tickformat="%d-%b"
-                            )
+
                             th = get_sla_threshold(df_sec, kpi, target_df)
                             if pd.notna(th):
                                 fig.add_hline(
                                     y=float(th),
                                     line_dash="dash",
                                     line_color="red",
-                                    line_width=3,
                                     annotation_text=f"{float(th):.2f}",
                                     annotation_position="top left"
                                 )
@@ -361,35 +337,19 @@ if uploaded:
                                 df_g = df_sec.groupby(["CELL_NAME","DATE_ID"]).mean(numeric_only=True).reset_index()
                                 if kpi not in df_g.columns:
                                     continue
+
                                 fig = px.line(df_g, x="DATE_ID", y=kpi, color="CELL_NAME")
-                                
-                                date_range = (df_g["DATE_ID"].max() - df_g["DATE_ID"].min()).days
-                                
-                                if date_range <= 14:
-                                    dtick = "D1"
-                                elif date_range <= 30:
-                                    dtick = "D3"
-                                elif date_range <= 90:
-                                    dtick = "D7"
-                                else:
-                                    dtick = "D15"
-                                
-                                fig.update_xaxes(
-                                    dtick=dtick,
-                                    tickformat="%d-%b"
-                                )
-                                
-                                th = get_sla_threshold_band(df_sec, kpi, target_df)
+
+                                th = get_sla_threshold(df_sec, kpi, target_df)
                                 if pd.notna(th):
                                     fig.add_hline(
                                         y=float(th),
                                         line_dash="dash",
                                         line_color="red",
-                                        line_width=3,
                                         annotation_text=f"{float(th):.2f}",
                                         annotation_position="top left"
                                     )
-                                
+
                                 st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
 
         # ================= SUMMARY =================
@@ -533,13 +493,8 @@ if uploaded:
                 y="Total_Traffic_Volume_new",
                 color="SITE_ID"
             )
-            
-            fig.update_xaxes(
-                dtick="D30",
-                tickformat="%d-%b-%Y"
-            )
-            
-            
+			
+			
             st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
 
             # ================= PAYLOAD BREAKDOWN =================
@@ -605,7 +560,7 @@ if uploaded:
                         color="Band_Layer",
                         category_orders={"Band_Layer": order}
                     )
-                    
+					
                     fig.update_xaxes(
                         dtick="D30"   # tiap 30 hari (biar tidak penuh)
                     )
@@ -636,11 +591,11 @@ if uploaded:
                     color="Band_Layer",
                     category_orders={"Band_Layer": order_total}
                 )
-                
+				
                 fig_total.update_xaxes(
                 dtick="D15"   # tiap 15 hari (biar tidak penuh)
-                )               
-                
+                )				
+				
                 st.plotly_chart(apply_universal_legend(fig_total), use_container_width=True)
 
             with col2:
@@ -657,7 +612,7 @@ if uploaded:
 
                 df_table = df_table[[col for col in order_total if col in df_table.columns]]
                 df_table = df_table.sort_index()
-                
+				
                 st.dataframe(df_table, use_container_width=True)
         # ================= NEW =================
         elif layout_mode == "Site KPI Dashboard":
@@ -689,33 +644,15 @@ if uploaded:
                     else:
                         status = "-"
 
-                    st.metric(site, round(avg_val,2) if pd.notna(avg_val) else "-")
-                    
-                    if status == "✅ OK":
-                        st.success(status)
-                    elif status == "❌ NOK":
-                        st.error(status)
-                    else:
-                        st.write(status)
+                    st.metric(site, round(avg_val,2) if pd.notna(avg_val) else "-", status)
 
             st.markdown("### 📈 KPI Trend")
 
             fig = px.line(df_site, x="DATE_ID", y=kpi_selected, color="SITE_ID")
-            
-            fig.update_xaxes(
-                dtick="D30",
-                tickformat="%d-%b-%Y",
-                range=[df_site["DATE_ID"].min(), df_site["DATE_ID"].max()]
-            )           
 
             th = get_sla_threshold(df_filtered, kpi_selected, target_df)
             if pd.notna(th):
-                fig.add_hline(
-                    y=float(th),
-                    line_dash="dash",
-                    line_color="red",
-                    line_width=3
-                )
+                fig.add_hline(y=float(th), line_dash="dash", line_color="red")
 
             st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
 
