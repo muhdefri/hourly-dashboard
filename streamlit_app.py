@@ -662,8 +662,6 @@ if uploaded:
 			
             th = get_sla_site_worst(df_filtered, kpi_selected, target_df)
 
-            st.caption(f"⚠️ SLA (worst band): {round(th,2) if th is not None else '-'}")
-
             df_site = (
                 df_filtered.groupby(["SITE_ID","DATE_ID"])[kpi_selected]
                 .mean()
@@ -695,7 +693,6 @@ if uploaded:
                     )
             
                     # ✅ PINDAH KE SINI (DALAM LOOP)
-                    st.caption(f"Target: {round(th,2) if th is not None else '-'} | {status}")
 
             st.markdown("### 📈 KPI Trend")
 
