@@ -309,11 +309,11 @@ if uploaded:
                                 continue
 
                             fig = px.line(df_g, x="DATE_ID", y=kpi, color="CELL_NAME")
-                            
+
                             fig.update_xaxes(
                                 dtick="D30",
                                 tickformat="%d-%b-%Y"
-                            )				
+                            )
 
                             th = get_sla_threshold(df_sec, kpi, target_df)
                             if pd.notna(th):
