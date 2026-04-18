@@ -309,6 +309,11 @@ if uploaded:
                                 continue
 
                             fig = px.line(df_g, x="DATE_ID", y=kpi, color="CELL_NAME")
+                            
+                            fig.update_xaxes(
+                                dtick="D30",
+                                tickformat="%d-%b-%Y"
+                            )				
 
                             th = get_sla_threshold(df_sec, kpi, target_df)
                             if pd.notna(th):
@@ -346,9 +351,13 @@ if uploaded:
                                 df_g = df_sec.groupby(["CELL_NAME","DATE_ID"]).mean(numeric_only=True).reset_index()
                                 if kpi not in df_g.columns:
                                     continue
-
                                 fig = px.line(df_g, x="DATE_ID", y=kpi, color="CELL_NAME")
-
+                                
+                                fig.update_xaxes(
+                                    dtick="D30",
+                                    tickformat="%d-%b-%Y"
+                                )
+                                
                                 th = get_sla_threshold_band(df_sec, kpi, target_df)
                                 if pd.notna(th):
                                     fig.add_hline(
@@ -359,7 +368,7 @@ if uploaded:
                                         annotation_text=f"{float(th):.2f}",
                                         annotation_position="top left"
                                     )
-
+                                
                                 st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
 
         # ================= SUMMARY =================
@@ -502,6 +511,11 @@ if uploaded:
                 x="DATE_ID",
                 y="Total_Traffic_Volume_new",
                 color="SITE_ID"
+            )
+			
+			fig.update_xaxes(
+                dtick="D30",
+                tickformat="%d-%b-%Y"
             )
 			
 			
@@ -666,6 +680,11 @@ if uploaded:
             st.markdown("### 📈 KPI Trend")
 
             fig = px.line(df_site, x="DATE_ID", y=kpi_selected, color="SITE_ID")
+			
+            fig.update_xaxes(
+                dtick="D30",
+                tickformat="%d-%b-%Y"
+            )			
 
             th = get_sla_threshold(df_filtered, kpi_selected, target_df)
             if pd.notna(th):
