@@ -420,7 +420,11 @@ if uploaded:
                     daily_values.append(val)
 
                 avg_val = pd.Series(daily_values).mean()
-                target = get_sla_threshold_band(df_filtered, kpi, target_df)
+
+                if selected_band == "ALL":
+                    target = get_sla_threshold(df_filtered, kpi, target_df)
+                else:
+                    target = get_sla_threshold_band(df_filtered, kpi, target_df)
 
                 is_nok = False
                 if target is not None and pd.notna(avg_val):
