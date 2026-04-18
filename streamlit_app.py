@@ -21,8 +21,15 @@ def apply_universal_legend(fig):
         ),
         margin=dict(l=20, r=20, t=40, b=150)
     )
-    return fig
 
+    # 🔥 Tebalin semua garis line chart
+    fig.update_traces(
+        line=dict(width=3),
+        mode="lines+markers",
+        marker=dict(size=6)
+    )
+
+    return fig
 
 # ================= SMART SECTOR MAP =================
 def map_sector(cell_name):
@@ -309,6 +316,7 @@ if uploaded:
                                     y=float(th),
                                     line_dash="dash",
                                     line_color="red",
+                                    line_width=3,
                                     annotation_text=f"{float(th):.2f}",
                                     annotation_position="top left"
                                 )
@@ -341,12 +349,13 @@ if uploaded:
 
                                 fig = px.line(df_g, x="DATE_ID", y=kpi, color="CELL_NAME")
 
-                                th = get_sla_threshold(df_sec, kpi, target_df)
+                                th = get_sla_threshold_band(df_sec, kpi, target_df)
                                 if pd.notna(th):
                                     fig.add_hline(
                                         y=float(th),
                                         line_dash="dash",
                                         line_color="red",
+                                        line_width=3,
                                         annotation_text=f"{float(th):.2f}",
                                         annotation_position="top left"
                                     )
@@ -653,7 +662,12 @@ if uploaded:
 
             th = get_sla_threshold(df_filtered, kpi_selected, target_df)
             if pd.notna(th):
-                fig.add_hline(y=float(th), line_dash="dash", line_color="red")
+                fig.add_hline(
+                    y=float(th),
+                    line_dash="dash",
+                    line_color="red",
+                    line_width=3
+                )
 
             st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
 
