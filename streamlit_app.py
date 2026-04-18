@@ -35,24 +35,15 @@ def apply_universal_legend(fig):
 def map_sector(cell_name):
     name = str(cell_name).upper()
 
-    match_rl = re.search(r'RL(\d)', name)
-    if match_rl:
-        return f"SEC{match_rl.group(1)}"
+    # ambil RLxx atau RRxx yang PALING BELAKANG
+    match = re.search(r'(RL|RR)(\d{2})$', name)
 
-    match_rr = re.search(r'RR(\d)', name)
-    if match_rr:
-        return f"SEC{match_rr.group(1)}"
-
-    match = re.search(r'(\d+)$', name)
     if match:
-        last_digit = int(match.group(1)) % 10
-        if last_digit in [1,4,7]: return "SEC1"
-        elif last_digit in [2,5,8]: return "SEC2"
-        elif last_digit in [3,6,9]: return "SEC3"
+        sector = match.group(2)[0]  # ambil digit pertama dari xx
+        return f"SEC{sector}"
 
-    hash_val = sum(ord(c) for c in name)
-    return f"SEC{(hash_val % 3) + 1}"
-
+    # fallback kalau format aneh
+    return "SEC1"
 
 # ================= LAYER DETECTION =================
 def detect_layer(cell):
