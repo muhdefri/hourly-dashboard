@@ -309,11 +309,13 @@ if uploaded:
                                 continue
 
                             fig = px.line(df_g, x="DATE_ID", y=kpi, color="CELL_NAME")
-
+                            
                             date_range = (df_g["DATE_ID"].max() - df_g["DATE_ID"].min()).days
                             
-                            if date_range <= 30:
+                            if date_range <= 14:
                                 dtick = "D1"
+                            elif date_range <= 30:
+                                dtick = "D3"
                             elif date_range <= 90:
                                 dtick = "D7"
                             else:
@@ -363,8 +365,10 @@ if uploaded:
                                 
                                 date_range = (df_g["DATE_ID"].max() - df_g["DATE_ID"].min()).days
                                 
-                                if date_range <= 30:
+                                if date_range <= 14:
                                     dtick = "D1"
+                                elif date_range <= 30:
+                                    dtick = "D3"
                                 elif date_range <= 90:
                                     dtick = "D7"
                                 else:
