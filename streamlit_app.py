@@ -574,11 +574,11 @@ if uploaded:
                 st.warning("KPI tidak tersedia di data")
                 st.stop()
 
-               df_site = (
-               df_filtered.groupby(["SITE_ID","DATE_ID"])[kpi_selected]
-               .mean()
-               .reset_index()
-              )
+                  df_site = (
+                  df_filtered.groupby(["SITE_ID","DATE_ID"])[kpi_selected]
+                  .mean()
+                  .reset_index() 
+                  )
 
             st.markdown("### 📌 KPI Summary")
             cols = st.columns(len(selected_sites))
