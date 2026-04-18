@@ -686,11 +686,18 @@ if uploaded:
             
                     delta = avg_val - th if (th is not None and pd.notna(avg_val)) else None
             
+                    # KPI
                     st.metric(
                         site,
                         round(avg_val,2) if pd.notna(avg_val) else "-",
                         delta=round(delta,2) if delta is not None else None
                     )
+            
+                    # ✅ TAMBAH INI (INI YANG KURANG TADI)
+                    if status == "❌ NOK":
+                        st.error("NOK")
+                    elif status == "✅ OK":
+                        st.success("OK")
             
                     # ✅ PINDAH KE SINI (DALAM LOOP)
 
