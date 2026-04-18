@@ -58,7 +58,7 @@ def detect_layer(cell):
     elif re.search(r'(MV\d*|VV\d*)$', cell):
         return "F3"
 
-    return None 
+    return None	
 
 
 # ================= SLA =================
@@ -493,8 +493,8 @@ if uploaded:
                 y="Total_Traffic_Volume_new",
                 color="SITE_ID"
             )
-            
-            
+			
+			
             st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
 
             # ================= PAYLOAD BREAKDOWN =================
@@ -560,7 +560,7 @@ if uploaded:
                         color="Band_Layer",
                         category_orders={"Band_Layer": order}
                     )
-                    
+					
                     fig.update_xaxes(
                         dtick="D30"   # tiap 30 hari (biar tidak penuh)
                     )
@@ -591,11 +591,11 @@ if uploaded:
                     color="Band_Layer",
                     category_orders={"Band_Layer": order_total}
                 )
-                
+				
                 fig_total.update_xaxes(
                 dtick="D15"   # tiap 15 hari (biar tidak penuh)
-                )               
-                
+                )				
+				
                 st.plotly_chart(apply_universal_legend(fig_total), use_container_width=True)
 
             with col2:
@@ -612,104 +612,51 @@ if uploaded:
 
                 df_table = df_table[[col for col in order_total if col in df_table.columns]]
                 df_table = df_table.sort_index()
-                
+				
                 st.dataframe(df_table, use_container_width=True)
         # ================= NEW =================
-elif layout_mode == "Site KPI Dashboard":
+        elif layout_mode == "Site KPI Dashboard":
 
-    st.header("🏢 Site Level KPI Dashboard")
+            st.header("🏢 Site Level KPI Dashboard")
 
-    kpi_selected = st.selectbox("Select KPI", kpi_list)
+            kpi_selected = st.selectbox("Select KPI", kpi_list)
 
-    # ================= SLA (WORST BAND) =================
-    th = get_sla_site_worst(df_filtered, kpi_selected, target_df)
-
-    st.caption("⚠️ SLA menggunakan nilai TERKECIL dari semua band (worst-case)")
-
-    # ================= DATA =================
-    df_site = (
-        df_filtered.groupby(["SITE_ID","DATE_ID"])[kpi_selected]
-        .mean()
-        .reset_index()
-    )
-
-    # ================= KPI SUMMARY =================
-    st.markdown("### 📌 KPI Summary")
-
-    cols = st.columns(len(selected_sites))
-
-    for i, site in enumerate(selected_sites):
-        with cols[i]:
-
-            df_s = df_site[df_site["SITE_ID"] == site]
-
-            avg_val = df_s[kpi_selected].mean()
-
-            # ================= STATUS =================
-            if pd.notna(avg_val) and th is not None:
-
-                if "Abnormal" in kpi_selected:
-                    is_nok = avg_val > th
-                else:
-                    is_nok = avg_val < th
-
-                status = "❌ NOK" if is_nok else "✅ OK"
-
-                delta = avg_val - th
-
-            else:
-                status = "-"
-                delta = None
-
-            # ================= METRIC =================
-            st.metric(
-                site,
-                round(avg_val,2) if pd.notna(avg_val) else "-",
-                delta=round(delta,2) if delta is not None else None
+            df_site = (
+                df_filtered.groupby(["SITE_ID","DATE_ID"])[kpi_selected]
+                .mean()
+                .reset_index()
             )
 
-            st.caption(f"Target: {round(th,2) if th else '-'} | {status}")
+            st.markdown("### 📌 KPI Summary")
+            cols = st.columns(len(selected_sites))
 
-    # ================= RANKING =================
-    st.markdown("### 🏆 Site Ranking")
+            for i, site in enumerate(selected_sites):
+                with cols[i]:
+                    df_s = df_site[df_site["SITE_ID"] == site]
+                    avg_val = df_s[kpi_selected].mean()
+                    th = get_sla_threshold(df_filtered, kpi_selected, target_df)
 
-    df_rank = (
-        df_site.groupby("SITE_ID")[kpi_selected]
-        .mean()
-        .reset_index()
-        .sort_values(kpi_selected, ascending=False)
-    )
+                    if pd.notna(avg_val) and th is not None:
+                        if "Abnormal" in kpi_selected:
+                            status = "❌ NOK" if avg_val > th else "✅ OK"
+                        else:
+                            status = "❌ NOK" if avg_val < th else "✅ OK"
+                    else:
+                        status = "-"
 
-    st.dataframe(df_rank, use_container_width=True)
+                    st.metric(site, round(avg_val,2) if pd.notna(avg_val) else "-", status)
 
-    # ================= TREND =================
-    st.markdown("### 📈 KPI Trend")
+            st.markdown("### 📈 KPI Trend")
 
-    fig = px.line(df_site, x="DATE_ID", y=kpi_selected, color="SITE_ID")
+            fig = px.line(df_site, x="DATE_ID", y=kpi_selected, color="SITE_ID")
 
-    if pd.notna(th):
-        fig.add_hline(
-            y=float(th),
-            line_dash="dash",
-            line_color="red",
-            annotation_text=f"SLA {round(th,2)}"
-        )
+            th = get_sla_threshold(df_filtered, kpi_selected, target_df)
+            if pd.notna(th):
+                fig.add_hline(y=float(th), line_dash="dash", line_color="red")
 
-    st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
+            st.plotly_chart(apply_universal_legend(fig), use_container_width=True)
 
-    # ================= DAILY TABLE =================
-    st.markdown("### 📋 Daily Table")
+            st.markdown("### 📋 Daily Table")
 
-    df_table = df_site.pivot(index="DATE_ID", columns="SITE_ID", values=kpi_selected)
-
-    st.dataframe(df_table, use_container_width=True)
-
-    # ================= WORST SITE =================
-    st.markdown("### 🚨 Worst Site Detection")
-
-    if "Abnormal" in kpi_selected:
-        worst = df_rank.sort_values(kpi_selected, ascending=False).iloc[0]
-    else:
-        worst = df_rank.sort_values(kpi_selected, ascending=True).iloc[0]
-
-    st.error(f"Worst Site: {worst['SITE_ID']} ({round(worst[kpi_selected],2)})")
+            df_table = df_site.pivot(index="DATE_ID", columns="SITE_ID", values=kpi_selected)
+            st.dataframe(df_table)
