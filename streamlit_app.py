@@ -354,8 +354,8 @@ if uploaded:
                                 fig = px.line(df_g, x="DATE_ID", y=kpi, color="CELL_NAME")
                                 
                                 fig.update_xaxes(
-                                    dtick="D30",
-                                    tickformat="%d-%b-%Y"
+                                    tickformat="%d-%b-%Y",
+                                    nticks=10
                                 )
                                 
                                 th = get_sla_threshold_band(df_sec, kpi, target_df)
