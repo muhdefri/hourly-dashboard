@@ -683,7 +683,8 @@ if uploaded:
             
             fig.update_xaxes(
                 dtick="D30",
-                tickformat="%d-%b-%Y"
+                tickformat="%d-%b-%Y",
+                range=[df_site["DATE_ID"].min(), df_site["DATE_ID"].max()]
             )           
 
             th = get_sla_threshold(df_filtered, kpi_selected, target_df)
