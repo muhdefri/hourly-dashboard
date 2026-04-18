@@ -654,7 +654,14 @@ if uploaded:
                     else:
                         status = "-"
 
-                    st.metric(site, round(avg_val,2) if pd.notna(avg_val) else "-", status)
+                    st.metric(site, round(avg_val,2) if pd.notna(avg_val) else "-")
+                    
+                    if status == "✅ OK":
+                        st.success(status)
+                    elif status == "❌ NOK":
+                        st.error(status)
+                    else:
+                        st.write(status)
 
             st.markdown("### 📈 KPI Trend")
 
