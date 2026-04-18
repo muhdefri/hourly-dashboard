@@ -310,11 +310,19 @@ if uploaded:
 
                             fig = px.line(df_g, x="DATE_ID", y=kpi, color="CELL_NAME")
 
+                            date_range = (df_g["DATE_ID"].max() - df_g["DATE_ID"].min()).days
+                            
+                            if date_range <= 30:
+                                dtick = "D1"
+                            elif date_range <= 90:
+                                dtick = "D7"
+                            else:
+                                dtick = "D15"
+                            
                             fig.update_xaxes(
-                                tickformat="%d-%b-%Y",
-                                nticks=10
+                                dtick=dtick,
+                                tickformat="%d-%b"
                             )
-
                             th = get_sla_threshold(df_sec, kpi, target_df)
                             if pd.notna(th):
                                 fig.add_hline(
@@ -353,9 +361,18 @@ if uploaded:
                                     continue
                                 fig = px.line(df_g, x="DATE_ID", y=kpi, color="CELL_NAME")
                                 
+                                date_range = (df_g["DATE_ID"].max() - df_g["DATE_ID"].min()).days
+                                
+                                if date_range <= 30:
+                                    dtick = "D1"
+                                elif date_range <= 90:
+                                    dtick = "D7"
+                                else:
+                                    dtick = "D15"
+                                
                                 fig.update_xaxes(
-                                    tickformat="%d-%b-%Y",
-                                    nticks=10
+                                    dtick=dtick,
+                                    tickformat="%d-%b"
                                 )
                                 
                                 th = get_sla_threshold_band(df_sec, kpi, target_df)
