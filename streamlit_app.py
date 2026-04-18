@@ -61,7 +61,7 @@ def detect_layer(cell):
     return None	
 
 
-# ================= SLA =================
+# ================= SLA ================= 
 @st.cache_data
 def load_sla_master():
     path = Path("src/SLA_MASTER.xlsx")
@@ -78,6 +78,7 @@ def load_sla_master():
     return kab_df, target_df
 
 
+# ================= SLA NORMAL =================
 def get_sla_threshold(df_scope, kpi, target_df):
 
     if target_df is None or df_scope.empty:
@@ -85,13 +86,12 @@ def get_sla_threshold(df_scope, kpi, target_df):
 
     try:
         kab = str(df_scope["KABUPATEN"].dropna().iloc[0]).lower().strip()
-
         bands = df_scope["Band"].dropna().unique()
 
         col_match = [
             c for c in target_df.columns
-            if c.replace("_", "").replace(" ", "") ==
-               kpi.lower().replace("_", "").replace(" ", "")
+            if c.replace("_","").replace(" ","") ==
+               kpi.lower().replace("_","").replace(" ","")
         ]
 
         if not col_match:
@@ -102,7 +102,7 @@ def get_sla_threshold(df_scope, kpi, target_df):
         for b in bands:
             th = target_df[
                 (target_df["kabupaten"].str.lower().str.strip() == kab) &
-                (target_df["band"].str.lower().str.strip() == str(b).lower())
+                (target_df["band"].astype(str).str.strip() == str(b))
             ]
 
             if not th.empty:
@@ -115,11 +115,52 @@ def get_sla_threshold(df_scope, kpi, target_df):
 
     except Exception as e:
         print("SLA error:", e)
-        return None
 
     return None
 
 
+# ================= SLA WORST (INI YANG BARU) =================
+def get_sla_site_worst(df_scope, kpi, target_df):
+
+    if target_df is None or df_scope.empty:
+        return None
+
+    try:
+        kab = str(df_scope["KABUPATEN"].dropna().iloc[0]).lower().strip()
+        bands = df_scope["Band"].dropna().unique()
+
+        col_match = [
+            c for c in target_df.columns
+            if c.replace("_","").replace(" ","") ==
+               kpi.lower().replace("_","").replace(" ","")
+        ]
+
+        if not col_match:
+            return None
+
+        th_list = []
+
+        for b in bands:
+            th = target_df[
+                (target_df["kabupaten"].str.lower().str.strip() == kab) &
+                (target_df["band"].astype(str).str.strip() == str(b))
+            ]
+
+            if not th.empty:
+                val = th[col_match[0]].values[0]
+                if pd.notna(val):
+                    th_list.append(float(val))
+
+        if len(th_list) > 0:
+            return min(th_list)   # 🔥 SLA TERENDAH
+
+    except Exception as e:
+        print("SLA error:", e)
+
+    return None
+
+
+# ================= SLA PER BAND =================
 def get_sla_threshold_band(df_scope, kpi, target_df):
 
     if target_df is None or df_scope.empty:
@@ -127,13 +168,12 @@ def get_sla_threshold_band(df_scope, kpi, target_df):
 
     try:
         kab = str(df_scope["KABUPATEN"].dropna().iloc[0]).lower().strip()
-
         band = str(df_scope["Band"].dropna().unique()[0]).lower().strip()
 
         col_match = [
             c for c in target_df.columns
-            if c.replace("_", "").replace(" ", "") ==
-               kpi.lower().replace("_", "").replace(" ", "")
+            if c.replace("_","").replace(" ","") ==
+               kpi.lower().replace("_","").replace(" ","")
         ]
 
         if not col_match:
@@ -149,7 +189,6 @@ def get_sla_threshold_band(df_scope, kpi, target_df):
 
     except Exception as e:
         print("SLA error:", e)
-        return None
 
     return None
 
