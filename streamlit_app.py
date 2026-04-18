@@ -659,9 +659,7 @@ if uploaded:
             st.header("🏢 Site Level KPI Dashboard")
 
             kpi_selected = st.selectbox("Select KPI", kpi_list)
-			
-            th = get_sla_site_worst(df_filtered, kpi_selected, target_df)
-
+            
             df_site = (
                 df_filtered.groupby(["SITE_ID","DATE_ID"])[kpi_selected]
                 .mean()
@@ -673,8 +671,13 @@ if uploaded:
 
             for i, site in enumerate(selected_sites):
                 with cols[i]:
+            
                     df_s = df_site[df_site["SITE_ID"] == site]
+                    df_scope = df_filtered[df_filtered["SITE_ID"] == site]
+            
                     avg_val = df_s[kpi_selected].mean()
+            
+                    th = get_sla_site_worst(df_scope, kpi_selected, target_df)
             
                     if pd.notna(avg_val) and th is not None:
                         if "Abnormal" in kpi_selected:
@@ -692,11 +695,10 @@ if uploaded:
                         delta=round(delta,2) if delta is not None else None
                     )
             
-                    # ✅ PINDAH KE SINI (DALAM LOOP)
                     if status == "❌ NOK":
-                         st.error("NOK")
+                        st.warning("Below target")
                     elif status == "✅ OK":
-                        st.success("OK")
+                        st.success("Within target")
 
             st.markdown("### 📈 KPI Trend")
 
