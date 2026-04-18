@@ -570,15 +570,11 @@ if uploaded:
 
             kpi_selected = st.selectbox("Select KPI", kpi_list)
 
-            if kpi_selected not in df_filtered.columns:
-                st.warning("KPI tidak tersedia di data")
-                st.stop()
-
-                  df_site = (
-                  df_filtered.groupby(["SITE_ID","DATE_ID"])[kpi_selected]
-                  .mean()
-                  .reset_index() 
-                  )
+            df_site = (
+                df_filtered.groupby(["SITE_ID","DATE_ID"])[kpi_selected]
+                .mean()
+                .reset_index()
+            )
 
             st.markdown("### 📌 KPI Summary")
             cols = st.columns(len(selected_sites))
