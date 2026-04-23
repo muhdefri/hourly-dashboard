@@ -5,7 +5,7 @@ st.set_page_config(layout="wide")
 # ================= LOGIN SYSTEM =================
 USER_CREDENTIALS = {
     "admin": "muhdefri",
-    "nando": "lte123"
+    "muhdefri": "lte123"
 }
 
 if "login" not in st.session_state:
