@@ -1,10 +1,40 @@
 import streamlit as st
+
+st.set_page_config(layout="wide")
+
+# ================= LOGIN SYSTEM =================
+USER_CREDENTIALS = {
+    "admin": "muhdefri",
+    "nando": "lte123"
+}
+
+if "login" not in st.session_state:
+    st.session_state.login = False
+
+def login_page():
+    st.title("🔐 Login Dashboard")
+
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+
+    if st.button("Login"):
+        if username in USER_CREDENTIALS and USER_CREDENTIALS[username] == password:
+            st.session_state.login = True
+            st.success("Login berhasil")
+            st.rerun()
+        else:
+            st.error("Username / Password salah")
+
+# STOP kalau belum login
+if not st.session_state.login:
+    login_page()
+    st.stop()
+
 import pandas as pd
 import plotly.express as px
 import re
 from pathlib import Path
 
-st.set_page_config(layout="wide")
 st.title("📊 LTE MULTI SITE KPI DASHBOARD")
 
 # ================= LEGEND =================
@@ -251,6 +281,13 @@ def load_data(file):
 
 # ================= MAIN =================
 uploaded = st.file_uploader("Upload KPI CSV", type=["csv","gz"])
+
+st.sidebar.markdown("### 👤 User Login")
+st.sidebar.success("Login berhasil")
+
+if st.sidebar.button("Logout"):
+    st.session_state.login = False
+    st.rerun()
 
 layout_mode = st.sidebar.radio(
     "Layout Mode",
